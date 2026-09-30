@@ -125,8 +125,10 @@
   --c: #121212;
   --p: #1a1a1a;
   --l: #4a4a4a;
-  --w: #ffffff;
-  --m: #aaaaaa;
+  --w: #F2F2F2;
+  --m: #B8B8B8;
+  --t: #858585;
+  --d: #555555;
   --r: #b20000;
 }
 
@@ -143,7 +145,7 @@
   --color-breach-input: #181818;
   --color-breach-hover: #191919;
   --color-breach-border: #4a4a4a;
-  --color-breach-muted: #aaaaaa;
+  --color-breach-muted: #B8B8B8;
   --color-breach-red: #b20000;
 
   /* Overrides for existing slate/neutral palette */
@@ -166,22 +168,22 @@
   --color-rose-600: #B20000;
   --color-rose-500: #FF3333;
 
-  /* BREACH Text Colors */
-  --color-slate-50: #FFFFFF;
-  --color-slate-100: #FFFFFF;
-  --color-slate-200: #FFFFFF;
+  /* BREACH Text Colors - Standardized Hierarchy */
+  --color-slate-50: #F2F2F2;
+  --color-slate-100: #F2F2F2;
+  --color-slate-200: #EAEAEA;
 
-  /* BREACH Secondary Text */
-  --color-slate-400: #aaaaaa;
-  --color-slate-500: #aaaaaa;
-  --color-slate-600: #777777;
-  --color-slate-300: #d6d6d6;
+  /* BREACH Secondary & Tertiary Functional Text */
+  --color-slate-400: #B8B8B8;
+  --color-slate-500: #B8B8B8;
+  --color-slate-600: #858585;
+  --color-slate-300: #D6D6D6;
 }
 
 /* Base HTML typography defaults: Geist for all UI & body */
 html, body {
   background: #121212;
-  color: #ffffff;
+  color: #F2F2F2;
   font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
@@ -391,29 +393,30 @@ div#root > div#workspace-root > main#main-content-stage > div#core-grid > sectio
 
 #react-correlation-panel > div:nth-of-type(1) > span {
   font-family: 'Geist Mono', monospace;
-  font-weight: bold;
-  font-size: 12px;
-  color: #ffffff;
+  font-weight: 600;
+  font-size: 13px;
+  color: #F2F2F2;
 }
 
 #react-correlation-panel > div:nth-of-type(3) > span:nth-of-type(3) {
   font-family: 'Geist Mono', monospace;
-  font-weight: bold;
-  font-size: 12px;
-  color: #ffffff;
+  font-weight: 600;
+  font-size: 13px;
+  color: #F2F2F2;
 }
 
 #react-correlation-panel > div:nth-of-type(3) > span:nth-of-type(2) {
   font-family: 'Geist Mono', monospace;
-  font-weight: bold;
-  font-size: 12px;
-  color: #ffffff;
+  font-weight: 600;
+  font-size: 13px;
+  color: #F2F2F2;
 }
 
 #react-correlation-panel > div:nth-of-type(3) > span:nth-of-type(1) {
   font-family: 'Geist Mono', monospace;
-  font-weight: bold;
-  font-size: 12px;
+  font-weight: 600;
+  font-size: 13px;
+  color: #F2F2F2;
 }
 
 #react-correlation-panel > p#correlation-explanation-text,
@@ -421,29 +424,30 @@ div#root > div#workspace-root > main#main-content-stage > div#core-grid > sectio
   font-family: 'Geist', sans-serif;
   font-weight: normal;
   font-size: 11px;
+  color: #858585;
   text-align: center;
 }
 
 #loudness-meters-block > div#lufs-scale-row > div:nth-of-type(2) > span:nth-of-type(2) {
   font-size: 11px;
-  color: #ffffff;
+  color: #B8B8B8;
 }
 
 #loudness-meters-block > div#lufs-scale-row > div:nth-of-type(2) > span:nth-of-type(1) {
   font-size: 10px;
-  color: #ffffff;
+  color: #B8B8B8;
 }
 
 #peak-meters-block > div:nth-of-type(3) > span:nth-of-type(1) {
   font-family: 'Geist Mono', monospace;
   font-size: 11px;
-  color: #ffffff;
+  color: #B8B8B8;
 }
 
 #peak-meters-block > div:nth-of-type(3) > span:nth-of-type(2) {
   font-family: 'Geist Mono', monospace;
   font-size: 11px;
-  color: #ffffff;
+  color: #B8B8B8;
 }
 
 #trend-stage > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > span:nth-of-type(2) {
@@ -814,43 +818,30 @@ div#root:nth-of-type(1) > div#workspace-root:nth-of-type(1) > main#main-content-
   color: #ffffff;
 }
 
-/* Loudness & Peak Panels Typography Standardization: Scaled (+2px) High-Contrast White */
+/* Loudness & Peak Panels Typography Standardization: Crisp #F2F2F2 Measurements, #B8B8B8 Labels */
 #peak-meters-block,
 #loudness-meters-block,
 #trend-stage,
 #compliance-block,
 #measurement-details-matrix {
-  color: #ffffff;
+  color: #F2F2F2;
 }
 
 #peak-dbfs-max-text {
   font-size: 12px !important;
-  color: #ffffff !important;
-  font-weight: bold;
-}
-
-#peak-meters-block .uppercase,
-#loudness-meters-block .uppercase,
-#trend-stage .uppercase,
-#measurement-details-matrix .uppercase {
-  color: #ffffff !important;
-}
-
-#peak-meters-block span,
-#loudness-meters-block span,
-#lufs-scale-row span {
-  color: #ffffff;
+  color: #F2F2F2 !important;
+  font-weight: 600;
 }
 
 #meter-select-lufs {
-  color: #ffffff !important;
-  font-size: 12px !important;
+  color: #F2F2F2 !important;
+  font-size: 11px !important;
 }
 
 #meter-select-lufs option,
 #meter-select-lufs optgroup {
-  color: #ffffff !important;
-  background-color: #101010 !important;
+  color: #F2F2F2 !important;
+  background-color: #141414 !important;
 }
 
 

@@ -1293,17 +1293,17 @@ export function WaveformPanel({
     ctx.fill();
 
     // Time grids
-    ctx.font = '10px "Geist Pixel", monospace';
-    ctx.fillStyle = '#ffffff';
+    ctx.font = '500 11px "Geist Mono", monospace';
+    ctx.fillStyle = '#F2F2F2';
     ctx.fillText(formatTime(currentTime), playheadX + 4, 13);
-    ctx.fillText(formatTime(dur), width - 45, 13);
+    ctx.fillText(formatTime(dur), width - 48, 13);
 
     // Live generating badge
     if (isLiveGenerating) {
       ctx.fillStyle = 'rgba(122, 31, 209, 0.85)';
-      ctx.fillRect(6, height - 16, 125, 12);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '7px "Geist Pixel", monospace';
+      ctx.fillRect(6, height - 18, 175, 14);
+      ctx.fillStyle = '#F2F2F2';
+      ctx.font = '600 10px "Geist Mono", monospace';
       ctx.fillText('• LIVE GENERATING FROM OUTPUT', 10, height - 7);
     }
   }, [peaks, audioBuffer, currentTime, zoomLevel, waveformPalette, currentDuration, focusedOnOutput, isLiveGenerating, fontsLoaded]);
@@ -1417,7 +1417,7 @@ export function WaveformPanel({
                 <Waves className="w-4 h-4 text-[#b20000]" />
               </div>
               <div>
-                <h3 className="text-xs font-bold text-white tracking-[1.4px] font-sans uppercase">
+                <h3 className="text-xs font-semibold text-[#F2F2F2] tracking-[1.4px] font-sans uppercase">
                   Waveform Monitor
                 </h3>
               </div>
@@ -1429,12 +1429,12 @@ export function WaveformPanel({
                 className="flex items-center gap-1.5 p-1 bg-[#181818] border border-[#4a4a4a] h-7"
                 title="Select waveform color bands palette type"
               >
-                <span className="text-[#aaaaaa] pl-1 text-[9px] font-sans font-bold uppercase tracking-[1px]">Mode:</span>
+                <span className="text-[#B8B8B8] pl-1 text-[11px] font-sans font-medium uppercase tracking-[1px]">Mode:</span>
                 <select
                   id="select-waveform-palette-header"
                   value={waveformPalette}
                   onChange={(e) => onWaveformPaletteChange(e.target.value as 'void' | 'rgb' | 'blue' | '3-band')}
-                  className="bg-transparent border-0 text-white focus:outline-none cursor-pointer font-sans text-[10px] font-bold uppercase tracking-[0.5px] pr-1"
+                  className="bg-transparent border-0 text-[#F2F2F2] focus:outline-none cursor-pointer font-sans text-[11px] font-medium uppercase tracking-[0.5px] pr-1"
                 >
                   <option value="rgb" className="bg-[#181818]">RGB (Default)</option>
                   <option value="void" className="bg-[#181818]">BREACH Red</option>
@@ -1448,16 +1448,16 @@ export function WaveformPanel({
           <div className="flex items-center gap-2" id="waveform-header-controls">
             {/* 4. Zoom feature (Mag Zoom) */}
             {(audioBuffer || fileUrl || isLiveGenerating) && (
-              <div className="flex items-center gap-1.5 bg-[#181818] px-2 py-0.5 border border-[#4a4a4a] h-8 text-[10px]">
-                <span className="text-[#aaaaaa] font-sans font-bold uppercase tracking-[1px]">Zoom:</span>
+              <div className="flex items-center gap-1.5 bg-[#181818] px-2 py-0.5 border border-[#4a4a4a] h-8 text-[11px]">
+                <span className="text-[#B8B8B8] font-sans font-medium uppercase tracking-[1px]">Zoom:</span>
                 <button
                   type="button"
                   onClick={() => setZoomLevel(Math.max(1, zoomLevel - 1))}
                   disabled={zoomLevel <= 1}
-                  className="text-[#aaaaaa] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer p-0.5"
+                  className="text-[#B8B8B8] hover:text-white disabled:text-[#555555] disabled:cursor-not-allowed transition-colors cursor-pointer p-0.5"
                   title="Decode Waveform Out"
                 >
-                  <ZoomOut className="w-3 h-3" />
+                  <ZoomOut className="w-3.5 h-3.5" />
                 </button>
                 <input
                   type="range"
@@ -1473,12 +1473,12 @@ export function WaveformPanel({
                   type="button"
                   onClick={() => setZoomLevel(Math.min(15, zoomLevel + 1))}
                   disabled={zoomLevel >= 15}
-                  className="text-[#aaaaaa] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer p-0.5"
+                  className="text-[#B8B8B8] hover:text-white disabled:text-[#555555] disabled:cursor-not-allowed transition-colors cursor-pointer p-0.5"
                   title="Decode Waveform In"
                 >
-                  <ZoomIn className="w-3 h-3" />
+                  <ZoomIn className="w-3.5 h-3.5" />
                 </button>
-                <span className="text-white font-sans text-[10px] font-bold min-w-[28px] text-right pr-1">
+                <span className="text-[#F2F2F2] font-sans text-[11px] font-semibold min-w-[28px] text-right pr-1">
                   {zoomLevel.toFixed(1)}x
                 </span>
               </div>
@@ -1522,7 +1522,7 @@ export function WaveformPanel({
               <div className="absolute inset-0 bg-[#0e0e0e]/95 flex flex-col items-center justify-center space-y-2 z-10 animate-fade-in border border-[#4a4a4a]">
                 <RefreshCw className="w-4 h-4 text-[#b20000] animate-spin" />
                 <div className="space-y-0.5 text-center">
-                  <span className="text-[8px] font-sans uppercase font-bold text-white tracking-[1.4px]">
+                  <span className="text-[10px] font-sans uppercase font-semibold text-[#F2F2F2] tracking-[1.4px]">
                     DECODING WAVEFORM...
                   </span>
                   <div className="w-32 bg-[#181818] h-1 overflow-hidden mt-0.5 mx-auto border border-[#4a4a4a]">
@@ -1539,7 +1539,7 @@ export function WaveformPanel({
             {decodeError && (
               <div className="absolute inset-0 bg-[#0e0e0e]/95 flex flex-col items-center justify-center p-3 text-center z-10 border border-[#4a4a4a]">
                 <Activity className="w-4 h-4 text-[#b20000] mb-1" />
-                <span className="text-[9px] font-sans font-bold text-[#b20000] uppercase tracking-[1px] max-w-sm">
+                <span className="text-[10px] font-sans font-semibold text-[#FF3333] uppercase tracking-[1px] max-w-sm">
                   {decodeError}
                 </span>
               </div>
@@ -1570,7 +1570,7 @@ export function WaveformPanel({
                     className="w-full h-full cursor-ew-resize absolute inset-0 block hover:opacity-95 transition-opacity"
                     title="Click and drag/scrub on active zooming window scroll timeline"
                   />
-                  <span className="absolute left-1.5 top-1 text-[8.5px] uppercase font-sans tracking-[1px] text-white bg-[#181818] px-1.5 py-0.5 pointer-events-none leading-none border border-[#4a4a4a] font-bold">
+                  <span className="absolute left-1.5 top-1 text-[10px] uppercase font-sans tracking-[0.5px] text-[#F2F2F2] bg-[#181818] px-2 py-0.5 pointer-events-none leading-none border border-[#4a4a4a] font-semibold">
                     {zoomLevel > 1 
                       ? `ZOOMED (${zoomLevel}X) • DYN RES (${Math.floor((1200 / zoomLevel) * Math.min(8, Math.max(1, Math.round(Math.sqrt(zoomLevel) * 2))))} PTS)` 
                       : 'FULL VIEW (1200 PTS)'}
@@ -1600,7 +1600,7 @@ export function WaveformPanel({
                     title="Click and drag anywhere to scrub timeline instantly"
                   />
                   {!isEmbeddedInDeck && (
-                    <span className="absolute left-2.5 bottom-1 text-[8.5px] uppercase font-sans tracking-[1px] text-white/90 pointer-events-none font-bold">
+                    <span className="absolute left-2.5 bottom-1 text-[10px] uppercase font-sans tracking-[0.5px] text-[#F2F2F2] pointer-events-none font-semibold">
                       FULL-TRACK OVERVIEW NAVIGATOR
                     </span>
                   )}
@@ -1612,7 +1612,7 @@ export function WaveformPanel({
                 <div className="h-10 w-10 bg-[#181818] border border-[#4a4a4a] flex items-center justify-center text-[#b20000]">
                   <Waves className="w-5 h-5 text-[#b20000]" />
                 </div>
-                <h3 className="text-[10px] font-bold text-white font-sans tracking-[1.4px] uppercase">
+                <h3 className="text-xs font-semibold text-[#F2F2F2] font-sans tracking-[1.4px] uppercase">
                   NO WAVEFORM DATA ACTIVE
                 </h3>
               </div>

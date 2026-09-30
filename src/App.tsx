@@ -109,8 +109,8 @@ export default function App() {
 
   // Hoisted state for File Player & Volume Specs for sync from header
   const togglePlaybackRef = useRef<(() => void) | null>(null);
-  const [fileUrl, setFileUrl] = useState<string>('demo://calibration');
-  const [fileName, setFileName] = useState<string>('BREACH. Audio Calibration Reference (124 BPM)');
+  const [fileUrl, setFileUrl] = useState<string>('');
+  const [fileName, setFileName] = useState<string>('');
   const [volume, setVolume] = useState<number>(50);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isBypassed, setIsBypassed] = useState<boolean>(() => audioAnalyzer.isBypassed());
@@ -121,10 +121,10 @@ export default function App() {
     audioAnalyzer.setBypassed(isBypassed);
   }, [isBypassed]);
 
-  // Workstation settings visibility state
+  // Workstation settings visibility state (Defaults to false: always default Studio Deck opening to "File")
   const [isSettingsOpen, setIsSettingsOpen] = usePersistentState<boolean>(
     'breach_settings_panel_open',
-    true,
+    false,
     (val) => typeof val === 'boolean'
   );
 
@@ -407,7 +407,7 @@ export default function App() {
             </div>
             <div className="flex items-center justify-between px-0.5 mt-1">
               <span 
-                className="text-[9px] sm:text-[10px] font-sans font-bold text-[#aaaaaa] tracking-[0.45em] uppercase select-none leading-none"
+                className="text-[10px] sm:text-[11px] font-sans font-semibold text-[#858585] tracking-[0.45em] uppercase select-none leading-none"
                 style={{ textAlign: 'right', marginTop: '-1px', marginRight: '0px', paddingLeft: '2px', paddingBottom: '0px', marginLeft: '53px', fontFamily: 'Geist' }}
               >
                 ANALYZER
@@ -415,7 +415,7 @@ export default function App() {
             </div>
           </div>
           <div className="hidden sm:flex items-center pl-4 border-l-4 border-[#B20000]">
-            <span className="text-[11px] text-[#cccccc] font-sans tracking-[1.4px] uppercase font-medium">
+            <span className="text-[11px] text-[#B8B8B8] font-sans tracking-[1.4px] uppercase font-medium">
               Precision Spectral Fourier & EBU R128 Loudness Instrument
             </span>
           </div>
@@ -433,11 +433,11 @@ export default function App() {
               disabled={!isMusicSource}
               onClick={() => setIsMuted(!isMuted)}
               className={`shrink-0 transition-opacity duration-150 ${
-                isMusicSource ? 'text-[#aaaaaa] hover:text-white cursor-pointer' : 'text-[#555555] cursor-not-allowed'
+                isMusicSource ? 'text-[#B8B8B8] hover:text-[#F2F2F2] cursor-pointer' : 'text-[#555555] cursor-not-allowed'
               }`}
               title={!isMusicSource ? 'Playback monitoring disabled' : isMuted ? 'Unmute and restore master audio output monitoring' : 'Mute master audio output monitoring'}
             >
-              {!isMusicSource || isMuted || volume === 0 ? <VolumeX className="w-3.5 h-3.5 text-[#B20000]" /> : <Volume2 className="w-3.5 h-3.5 text-[#aaaaaa]" />}
+              {!isMusicSource || isMuted || volume === 0 ? <VolumeX className="w-3.5 h-3.5 text-[#B20000]" /> : <Volume2 className="w-3.5 h-3.5 text-[#B8B8B8]" />}
             </button>
             
             <input
@@ -457,7 +457,7 @@ export default function App() {
               title={!isMusicSource ? 'Playback monitoring disabled' : 'Drag to adjust master local audio monitoring volume level'}
             />
 
-            <span className="text-[11px] font-mono text-[#aaaaaa] w-8 text-right min-w-[28px] shrink-0" id="header-volume-text">
+            <span className="text-[11px] font-mono text-[#F2F2F2] font-medium w-8 text-right min-w-[28px] shrink-0" id="header-volume-text">
               {!isMusicSource ? 'OFF' : isMuted ? 'MUT' : `${volume}%`}
             </span>
           </div>
@@ -467,14 +467,14 @@ export default function App() {
             id="btn-master-bypass"
             onClick={() => setIsBypassed(!isBypassed)}
             title={isBypassed ? "Disable master bypass and restore speaker monitoring" : "Enable master bypass: disconnect output streams from speakers while keeping the visualizers active"}
-            className={`h-9 px-3.5 border text-[11px] uppercase tracking-[1.2px] font-bold transition-colors duration-150 cursor-pointer ${
+            className={`h-9 px-3.5 border text-[11px] uppercase tracking-[1px] font-medium transition-colors duration-150 cursor-pointer ${
               isBypassed
-                ? 'bg-[#B20000] border-[#B20000] text-white'
-                : 'bg-[#181818] border-[#4a4a4a] text-[#cccccc] hover:bg-[#ffffff] hover:text-[#111111] hover:border-[#ffffff]'
+                ? 'bg-[#B20000] border-[#B20000] text-[#F2F2F2]'
+                : 'bg-[#181818] border-[#4a4a4a] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2]'
             }`}
           >
             <span className="inline-flex items-center gap-1.5">
-              <span className={`w-1.5 h-1.5 ${isBypassed ? 'bg-white' : 'bg-[#B20000]'}`}></span>
+              <span className={`w-1.5 h-1.5 ${isBypassed ? 'bg-[#F2F2F2]' : 'bg-[#B20000]'}`}></span>
               Bypass
             </span>
           </button>
@@ -485,10 +485,10 @@ export default function App() {
             disabled={activeSourceType === AudioSourceType.AUDIO_FILE && !fileUrl}
             onClick={handleTogglePlayback}
             title={isPlaying ? "Stop real-time audio analytics engine processing (Space)" : activeSourceType === AudioSourceType.AUDIO_FILE && !fileUrl ? "Select an audio track in the Music Lab playlist to start the engine" : "Start real-time audio analytics engine processing (Space)"}
-            className={`h-9 px-4 border flex items-center justify-center gap-2 text-[11px] uppercase font-bold tracking-[1.2px] transition-colors duration-150 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer ${
+            className={`h-9 px-4 border flex items-center justify-center gap-2 text-[11px] uppercase font-medium tracking-[1px] transition-colors duration-150 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer ${
               isPlaying
-                ? 'bg-[#B20000] border-[#B20000] text-white'
-                : 'bg-[#181818] border-[#4a4a4a] text-[#cccccc] hover:bg-[#ffffff] hover:text-[#111111] hover:border-[#ffffff]'
+                ? 'bg-[#B20000] border-[#B20000] text-[#F2F2F2]'
+                : 'bg-[#181818] border-[#4a4a4a] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2]'
             }`}
           >
             {isPlaying ? (
@@ -591,15 +591,15 @@ export default function App() {
                 <Disc className="w-5 h-5 text-[#b20000]" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-xs font-bold text-white font-sans tracking-[1.4px] uppercase">DJ Waveform Deck Popped Out</h3>
-                <p className="text-[10px] text-[#aaaaaa] font-sans max-w-sm mx-auto leading-normal uppercase tracking-wider">
+                <h3 className="text-xs font-semibold text-[#F2F2F2] font-sans tracking-[1.4px] uppercase">DJ Waveform Deck Popped Out</h3>
+                <p className="text-[10px] text-[#858585] font-sans max-w-sm mx-auto leading-normal uppercase tracking-wider">
                   The high-resolution RGB multi-band waveform and beatgrid editor is actively running in floating window mode.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsDJWaveformPoppedOut(false)}
-                className="mt-2 px-3.5 py-1.5 text-[10px] uppercase font-sans font-bold tracking-[1.2px] bg-[#181818] text-[#b20000] border border-[#4a4a4a] hover:bg-[#b20000] hover:text-white transition-colors cursor-pointer"
+                className="mt-2 px-3.5 py-1.5 text-[11px] uppercase font-sans font-medium tracking-[0.8px] bg-[#181818] text-[#b20000] border border-[#4a4a4a] hover:bg-[#b20000] hover:text-white transition-colors cursor-pointer"
                 id="btn-redock-dj-waveform"
               >
                 Dock Waveform Deck
@@ -629,15 +629,15 @@ export default function App() {
                 <AudioLines className="w-5 h-5" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-xs font-bold text-white font-sans tracking-[1.4px] uppercase">Spectrum Analyzer Deck Popped Out</h3>
-                <p className="text-[10px] text-[#aaaaaa] font-sans max-w-sm mx-auto leading-normal uppercase tracking-wider">
+                <h3 className="text-xs font-semibold text-[#F2F2F2] font-sans tracking-[1.4px] uppercase">Spectrum Analyzer Deck Popped Out</h3>
+                <p className="text-[10px] text-[#858585] font-sans max-w-sm mx-auto leading-normal uppercase tracking-wider">
                   The real-time high-fidelity spectral analysis deck is actively rendering in floating window mode.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsVisualizerPoppedOut(false)}
-                className="mt-2 px-3.5 py-1.5 text-[10px] uppercase font-sans font-bold tracking-[1.2px] bg-[#181818] text-[#b20000] border border-[#4a4a4a] hover:bg-[#b20000] hover:text-white transition-colors cursor-pointer"
+                className="mt-2 px-3.5 py-1.5 text-[11px] uppercase font-sans font-medium tracking-[0.8px] bg-[#181818] text-[#b20000] border border-[#4a4a4a] hover:bg-[#b20000] hover:text-white transition-colors cursor-pointer"
                 id="btn-redock-visualizer"
               >
                 Dock Spectrum Analyzer Deck
@@ -709,15 +709,15 @@ export default function App() {
                   <Cpu className="w-5 h-5" />
                 </div>
                 <div className="space-y-1">
-                  <h3 className="text-xs font-bold text-white font-sans tracking-[1.4px] uppercase">Loudness & Peak Analyzer Popped Out</h3>
-                  <p className="text-[10px] text-[#aaaaaa] font-sans max-w-sm mx-auto leading-normal uppercase tracking-wider">
+                  <h3 className="text-xs font-semibold text-[#F2F2F2] font-sans tracking-[1.4px] uppercase">Loudness & Peak Analyzer Popped Out</h3>
+                  <p className="text-[10px] text-[#858585] font-sans max-w-sm mx-auto leading-normal uppercase tracking-wider">
                     The ITU-R BS.1770-4 K-weighted loudness integration engine is actively updating in floating window mode.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsLoudnessPoppedOut(false)}
-                  className="mt-2 px-3.5 py-1.5 text-[10px] uppercase font-sans font-bold tracking-[1.2px] bg-[#181818] text-[#b20000] border border-[#4a4a4a] hover:bg-[#b20000] hover:text-white transition-colors cursor-pointer"
+                  className="mt-2 px-3.5 py-1.5 text-[11px] uppercase font-sans font-medium tracking-[0.8px] bg-[#181818] text-[#b20000] border border-[#4a4a4a] hover:bg-[#b20000] hover:text-white transition-colors cursor-pointer"
                   id="btn-redock-loudness"
                 >
                   Dock Loudness Meter
@@ -743,15 +743,15 @@ export default function App() {
                   <Compass className="w-4 h-4" />
                 </div>
                 <div className="space-y-1">
-                  <h3 className="text-xs font-bold text-white font-sans tracking-[1.4px] uppercase">Scope Panel Popped Out</h3>
-                  <p className="text-[10px] text-[#aaaaaa] font-sans max-w-[240px] mx-auto leading-normal uppercase tracking-wider">
+                  <h3 className="text-xs font-semibold text-[#F2F2F2] font-sans tracking-[1.4px] uppercase">Scope Panel Popped Out</h3>
+                  <p className="text-[10px] text-[#858585] font-sans max-w-[240px] mx-auto leading-normal uppercase tracking-wider">
                     The Lissajous phase goniometer & numeric correlation index meter is actively running in floating window mode.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsVectorPoppedOut(false)}
-                  className="mt-2 px-3.5 py-1.5 text-[10px] uppercase font-sans font-bold tracking-[1.2px] bg-[#181818] text-[#b20000] border border-[#4a4a4a] hover:bg-[#b20000] hover:text-white transition-colors cursor-pointer"
+                  className="mt-2 px-3.5 py-1.5 text-[11px] uppercase font-sans font-medium tracking-[0.8px] bg-[#181818] text-[#b20000] border border-[#4a4a4a] hover:bg-[#b20000] hover:text-white transition-colors cursor-pointer"
                   id="btn-redock-vector"
                 >
                   Dock Scope Panel
@@ -773,11 +773,11 @@ export default function App() {
           
           <div className="flex items-start gap-3.5">
             <div className="border-t-4 border-[#B20000] pt-2 min-w-[28px]">
-              <span className="font-bold text-xs text-white">01</span>
+              <span className="font-semibold text-xs text-[#F2F2F2]">01</span>
             </div>
             <div className="space-y-1.5">
-              <h3 className="text-xs font-bold text-white tracking-[1.2px] uppercase">Real-Time FFT Analyzer</h3>
-              <p className="text-[12px] text-[#aaaaaa] leading-relaxed font-sans">
+              <h3 className="text-xs font-semibold text-[#F2F2F2] tracking-[1.2px] uppercase">Real-Time FFT Analyzer</h3>
+              <p className="text-[12px] text-[#B8B8B8] leading-relaxed font-sans">
                 Generates a fast-fourier representation of the unweighted audio stream. Choosing the <strong>Logarithmic</strong> view spreads critical acoustic octaves linearly across the screen, mimicking the human ear's psychoacoustic cochlea responses.
               </p>
             </div>
@@ -785,11 +785,11 @@ export default function App() {
 
           <div className="flex items-start gap-3.5">
             <div className="border-t-4 border-[#B20000] pt-2 min-w-[28px]">
-              <span className="font-bold text-xs text-white">02</span>
+              <span className="font-semibold text-xs text-[#F2F2F2]">02</span>
             </div>
             <div className="space-y-1.5">
-              <h3 className="text-xs font-bold text-white tracking-[1.2px] uppercase">ITU BS.1770 WEIGHTS</h3>
-              <p className="text-[12px] text-[#aaaaaa] leading-relaxed font-sans">
+              <h3 className="text-xs font-semibold text-[#F2F2F2] tracking-[1.2px] uppercase">ITU BS.1770 WEIGHTS</h3>
+              <p className="text-[12px] text-[#B8B8B8] leading-relaxed font-sans">
                 Before evaluating energy power, we pipe the sound through acoustic <strong>K-weighting filters</strong>: Stage 1 shapes physical human head diffractions, and Stage 2 rolls off subsonic bass rumbles under 38Hz. This simulates human ear loudness responses.
               </p>
             </div>
@@ -797,11 +797,11 @@ export default function App() {
 
           <div className="flex items-start gap-3.5">
             <div className="border-t-4 border-[#B20000] pt-2 min-w-[28px]">
-              <span className="font-bold text-xs text-white">03</span>
+              <span className="font-semibold text-xs text-[#F2F2F2]">03</span>
             </div>
             <div className="space-y-1.5">
-              <h3 className="text-xs font-bold text-white tracking-[1.2px] uppercase">EBU Gated Integration</h3>
-              <p className="text-[12px] text-[#aaaaaa] leading-relaxed font-sans">
+              <h3 className="text-xs font-semibold text-[#F2F2F2] tracking-[1.2px] uppercase">EBU Gated Integration</h3>
+              <p className="text-[12px] text-[#B8B8B8] leading-relaxed font-sans">
                 To yield authentic target measurements, we implement dual-gated average levels. Values below <strong>-70 LUFS</strong> absolute silence are rejected, and only segments above the sliding relative block power are counted.
               </p>
             </div>
@@ -812,10 +812,10 @@ export default function App() {
       </main>
 
       {/* 4. Static Brand Footer styled after guides.breach.productions */}
-      <footer className="max-w-7xl w-full mx-auto px-6 sm:px-12 mt-12 mb-6 text-[11px] text-[#aaaaaa] font-sans flex flex-wrap justify-between items-center gap-4 border-t-4 border-[#B20000] pt-4 uppercase tracking-[1.2px]" id="system-footer">
+      <footer className="max-w-7xl w-full mx-auto px-6 sm:px-12 mt-12 mb-6 text-[11px] text-[#858585] font-sans flex flex-wrap justify-between items-center gap-4 border-t-4 border-[#B20000] pt-4 uppercase tracking-[1.2px]" id="system-footer">
         <div className="flex items-center gap-2 flex-wrap text-left" id="footer-brand-info">
-          <span className="font-bold text-white tracking-widest">BREACH.Analyzer /</span>
-          <span className="text-[#aaaaaa]">PRECISION REAL-TIME AUDIO ANALYTICS WORKSTATION</span>
+          <span className="font-semibold text-[#F2F2F2] tracking-widest">BREACH.Analyzer /</span>
+          <span className="text-[#858585]">PRECISION REAL-TIME AUDIO ANALYTICS WORKSTATION</span>
         </div>
 
         <div className="flex items-center gap-4 ml-auto" id="footer-attribution">
@@ -823,7 +823,7 @@ export default function App() {
             href="https://breach.productions"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-white transition-colors duration-150"
+            className="hover:text-[#F2F2F2] transition-colors duration-150"
             id="link-developed-by-breach"
           >
             BREACH.PRODUCTIONS

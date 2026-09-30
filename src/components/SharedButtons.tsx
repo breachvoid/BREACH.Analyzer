@@ -19,7 +19,7 @@ export function MinimizeButton({ title = "Minimize panel", onClick, id, classNam
       type="button"
       id={id}
       onClick={onClick}
-      className={`p-1.5 bg-[#181818] border border-[#4a4a4a] hover:bg-white hover:text-[#111111] hover:border-white text-[#aaaaaa] transition-colors duration-150 flex items-center justify-center cursor-pointer flex-shrink-0 ${className || ''}`}
+      className={`p-1.5 bg-[#181818] border border-[#4a4a4a] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2] text-[#B8B8B8] transition-colors duration-150 flex items-center justify-center cursor-pointer flex-shrink-0 ${className || ''}`}
       title={title}
     >
       {isMinimized ? (
@@ -37,7 +37,7 @@ export function ResetButton({ title = "Reset analytics data", onClick, id, class
       type="button"
       id={id}
       onClick={onClick}
-      className={`p-1.5 bg-[#181818] border border-[#4a4a4a] hover:bg-white hover:text-[#111111] hover:border-white text-[#aaaaaa] transition-colors duration-150 flex items-center justify-center cursor-pointer ${className || ''}`}
+      className={`p-1.5 bg-[#181818] border border-[#4a4a4a] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2] text-[#B8B8B8] transition-colors duration-150 flex items-center justify-center cursor-pointer ${className || ''}`}
       title={title}
     >
       <RefreshCw className="w-3.5 h-3.5" />
@@ -51,7 +51,7 @@ export function PopOutButton({ title = "Pop out panel to floating window", onCli
       type="button"
       id={id}
       onClick={onClick}
-      className={`p-1.5 bg-[#181818] border border-[#4a4a4a] hover:bg-white hover:text-[#111111] hover:border-white text-[#aaaaaa] transition-colors duration-150 flex items-center justify-center cursor-pointer flex-shrink-0 ${className || ''}`}
+      className={`p-1.5 bg-[#181818] border border-[#4a4a4a] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2] text-[#B8B8B8] transition-colors duration-150 flex items-center justify-center cursor-pointer flex-shrink-0 ${className || ''}`}
       title={title}
     >
       <ExternalLink className="w-3.5 h-3.5" />
@@ -72,7 +72,7 @@ export function DockButton({ label = "Dock Panel", onClick, id, className }: Doc
       type="button"
       id={id}
       onClick={onClick}
-      className={`p-1.5 bg-[#181818] border border-[#4a4a4a] hover:bg-white hover:text-[#111111] hover:border-white text-[#aaaaaa] transition-colors duration-150 flex items-center justify-center cursor-pointer text-[10px] font-sans font-bold uppercase tracking-[1px] px-2.5 flex-shrink-0 ${className || ''}`}
+      className={`p-1.5 bg-[#181818] border border-[#4a4a4a] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2] text-[#B8B8B8] transition-colors duration-150 flex items-center justify-center cursor-pointer text-[11px] font-sans font-medium uppercase tracking-[0.8px] px-2.5 flex-shrink-0 ${className || ''}`}
       title="Dock back to default panel layout"
     >
       {label}

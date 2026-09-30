@@ -216,7 +216,7 @@ export function SettingsPanel({
             title="Core Analysis Tuning: Manually calibrate FFT window resolution, temporal averaging, spectral peak decay, and frequency scaling."
           >
             {/* LHS Section Label (Subtitle on hover) */}
-            <div className="w-full md:w-1/4 flex items-center gap-2 text-white font-sans text-[10px] uppercase font-bold tracking-[1.4px] cursor-default select-none shrink-0">
+            <div className="w-full md:w-1/4 flex items-center gap-2 text-[#F2F2F2] font-sans text-[11px] uppercase font-semibold tracking-[1.4px] cursor-default select-none shrink-0">
               <Sliders className="w-3.5 h-3.5 text-[#b20000] rotate-90" />
               <span>Core Tuning</span>
             </div>
@@ -228,12 +228,12 @@ export function SettingsPanel({
                 className="flex items-center gap-1.5 p-1 bg-[#181818] border border-[#4a4a4a] h-7"
                 title="Set the Fast Fourier Transform block size. Larger sizes offer higher bass resolution but are slower."
               >
-                <span className="text-[#aaaaaa] pl-1 text-[9px] font-sans font-bold uppercase tracking-[1px]">FFT:</span>
+                <span className="text-[#858585] pl-1 text-[10px] font-sans font-medium uppercase tracking-[1px]">FFT:</span>
                 <select
                   id="settings-select-fft-bins"
                   value={config.fftSize}
                   onChange={(e) => setConfig({ ...config, fftSize: parseInt(e.target.value) })}
-                  className="bg-transparent border-0 text-white focus:outline-none cursor-pointer font-sans text-[10px] font-bold uppercase tracking-[0.5px] pr-1"
+                  className="bg-transparent border-0 text-[#F2F2F2] focus:outline-none cursor-pointer font-sans text-[11px] font-medium uppercase tracking-[0.5px] pr-1"
                 >
                   <option value="512" className="bg-[#181818]">512</option>
                   <option value="1024" className="bg-[#181818]">1024</option>
@@ -248,9 +248,9 @@ export function SettingsPanel({
                 className="flex items-center gap-2 p-1 px-2.5 bg-[#181818] border border-[#4a4a4a] h-7 min-w-[140px] flex-grow md:flex-grow-0"
                 title="Control how heavily the spectrum values are averaged over time (0.1 to 0.95)."
               >
-                <div className="flex items-center gap-1 text-[9px] font-sans font-bold text-[#aaaaaa] uppercase tracking-[1px]">
+                <div className="flex items-center gap-1 text-[10px] font-sans font-medium text-[#858585] uppercase tracking-[1px]">
                   <span>Averaging:</span>
-                  <span className="text-white font-bold">{Math.round(config.smoothing * 100)}%</span>
+                  <span className="text-[#F2F2F2] font-semibold">{Math.round(config.smoothing * 100)}%</span>
                 </div>
                 <input
                   id="settings-slider-fft-smoothing"
@@ -269,7 +269,7 @@ export function SettingsPanel({
                 className="flex items-center gap-1.5 p-1 bg-[#181818] border border-[#4a4a4a] h-7"
                 title="Configure the persistence duration of peak indicators."
               >
-                <span className="text-[#aaaaaa] pl-1 text-[9px] font-sans font-bold uppercase tracking-[1px]">Peaks:</span>
+                <span className="text-[#858585] pl-1 text-[10px] font-sans font-medium uppercase tracking-[1px]">Peaks:</span>
                 <select
                   id="settings-select-peak-hold-decay"
                   value={!config.showPeakHold ? 'off' : (config.peakHoldDecay !== undefined ? config.peakHoldDecay : 1000)}
@@ -281,7 +281,7 @@ export function SettingsPanel({
                       setConfig({ ...config, showPeakHold: true, peakHoldDecay: parseInt(val) });
                     }
                   }}
-                  className="bg-transparent border-0 text-white focus:outline-none cursor-pointer font-sans text-[10px] font-bold uppercase tracking-[0.5px] pr-1"
+                  className="bg-transparent border-0 text-[#F2F2F2] focus:outline-none cursor-pointer font-sans text-[11px] font-medium uppercase tracking-[0.5px] pr-1"
                 >
                   <option value="off" className="bg-[#181818]">Disabled</option>
                   <option value="500" className="bg-[#181818]">500ms</option>
@@ -297,12 +297,12 @@ export function SettingsPanel({
                   className="flex items-center gap-1.5 p-1 bg-[#181818] border border-[#4a4a4a] h-7"
                   title="Configure the frequency axis scale. Logarithmic mimics human hearing; Linear is uniform."
                 >
-                  <span className="text-[#aaaaaa] pl-1 text-[9px] font-sans font-bold uppercase tracking-[1px]">Scale:</span>
+                  <span className="text-[#858585] pl-1 text-[10px] font-sans font-medium uppercase tracking-[1px]">Scale:</span>
                   <select
                     id="settings-btn-toggle-frequency-scale"
                     value={config.frequencyScale}
                     onChange={(e) => setConfig({ ...config, frequencyScale: e.target.value as FrequencyScale })}
-                    className="bg-transparent border-0 text-white focus:outline-none cursor-pointer font-sans text-[10px] font-bold uppercase tracking-[0.5px] pr-1"
+                    className="bg-transparent border-0 text-[#F2F2F2] focus:outline-none cursor-pointer font-sans text-[11px] font-medium uppercase tracking-[0.5px] pr-1"
                   >
                     <option value={FrequencyScale.LOGARITHMIC} className="bg-[#181818]">Logarithmic</option>
                     <option value={FrequencyScale.LINEAR} className="bg-[#181818]">Linear</option>
@@ -316,10 +316,10 @@ export function SettingsPanel({
                   type="button"
                   id="btn-quick-preset-high-res"
                   onClick={() => setConfig(prev => ({ ...prev, fftSize: 4096, smoothing: 0.85 }))}
-                  className={`px-2 py-0.5 text-[9px] font-sans uppercase tracking-[1px] font-bold border transition-colors cursor-pointer h-7 ${
+                  className={`px-2 py-0.5 text-[10px] font-sans uppercase tracking-[0.8px] font-medium border transition-colors cursor-pointer h-7 ${
                     config.fftSize === 4096 && Math.abs(config.smoothing - 0.85) < 0.01
-                      ? 'bg-[#b20000] border-[#b20000] text-white'
-                      : 'bg-[#181818] border-[#4a4a4a] text-[#cccccc] hover:bg-white hover:text-[#111111]'
+                      ? 'bg-[#b20000] border-[#b20000] text-[#F2F2F2]'
+                      : 'bg-[#181818] border-[#4a4a4a] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111]'
                   }`}
                   title="Configure High FFT Size (4096) and higher smoothing (0.85)."
                 >
@@ -329,10 +329,10 @@ export function SettingsPanel({
                   type="button"
                   id="btn-quick-preset-fast-resp"
                   onClick={() => setConfig(prev => ({ ...prev, fftSize: 512, smoothing: 0.35 }))}
-                  className={`px-2 py-0.5 text-[9px] font-sans uppercase tracking-[1px] font-bold border transition-colors cursor-pointer h-7 ${
+                  className={`px-2 py-0.5 text-[10px] font-sans uppercase tracking-[0.8px] font-medium border transition-colors cursor-pointer h-7 ${
                     config.fftSize === 512 && Math.abs(config.smoothing - 0.35) < 0.01
-                      ? 'bg-[#b20000] border-[#b20000] text-white'
-                      : 'bg-[#181818] border-[#4a4a4a] text-[#cccccc] hover:bg-white hover:text-[#111111]'
+                      ? 'bg-[#b20000] border-[#b20000] text-[#F2F2F2]'
+                      : 'bg-[#181818] border-[#4a4a4a] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111]'
                   }`}
                   title="Configure Low FFT Size (512) and lower smoothing (0.35)."
                 >
@@ -349,7 +349,7 @@ export function SettingsPanel({
             title="Compliance Target: Select an industry-standard relative integrated LUFS alignment threshold or type a custom calibration target."
           >
             {/* LHS Section Label (Subtitle on hover) */}
-            <div className="w-full md:w-1/4 flex items-center gap-2 text-white font-sans text-[10px] uppercase font-bold tracking-[1.4px] cursor-default select-none shrink-0">
+            <div className="w-full md:w-1/4 flex items-center gap-2 text-[#F2F2F2] font-sans text-[11px] uppercase font-semibold tracking-[1.4px] cursor-default select-none shrink-0">
               <Volume2 className="w-3.5 h-3.5 text-[#b20000]" />
               <span>Compliance</span>
             </div>
@@ -361,12 +361,12 @@ export function SettingsPanel({
                 className="flex items-center gap-1.5 p-1 bg-[#181818] border border-[#4a4a4a] h-7 flex-grow"
                 title="Select a predefined industry-standard target loudness"
               >
-                <span className="text-[#aaaaaa] pl-1 text-[9px] font-sans font-bold uppercase tracking-[1px]">Standard:</span>
+                <span className="text-[#858585] pl-1 text-[10px] font-sans font-medium uppercase tracking-[1px]">Standard:</span>
                 <select
                   id="settings-select-lufs"
                   value={targetLoudness}
                   onChange={(e) => setTargetLoudness(parseFloat(e.target.value))}
-                  className="bg-transparent border-0 text-white font-sans text-[10px] font-bold uppercase tracking-[0.5px] focus:outline-none cursor-pointer flex-grow p-0.5"
+                  className="bg-transparent border-0 text-[#F2F2F2] font-sans text-[11px] font-medium uppercase tracking-[0.5px] focus:outline-none cursor-pointer flex-grow p-0.5"
                 >
                   {![
                     LoudnessStandard.SPOTIFY,
@@ -390,40 +390,40 @@ export function SettingsPanel({
                     </option>
                   )}
                   <optgroup label="Streaming Standards" className="bg-[#181818] text-[#b20000] font-bold text-[10px]">
-                    <option value={LoudnessStandard.SPOTIFY} className="bg-[#181818] text-white font-sans">Spotify (-14.0 LUFS)</option>
-                    <option value={LoudnessStandard.YOUTUBE} className="bg-[#181818] text-white font-sans">YouTube (-14.0 LUFS)</option>
-                    <option value={LoudnessStandard.APPLE_MUSIC} className="bg-[#181818] text-white font-sans">Apple Music (-16.0 LUFS)</option>
-                    <option value={LoudnessStandard.TIDAL_DEEZER} className="bg-[#181818] text-white font-sans">Tidal / Deezer (-14.0 LUFS)</option>
+                    <option value={LoudnessStandard.SPOTIFY} className="bg-[#181818] text-[#F2F2F2] font-sans">Spotify (-14.0 LUFS)</option>
+                    <option value={LoudnessStandard.YOUTUBE} className="bg-[#181818] text-[#F2F2F2] font-sans">YouTube (-14.0 LUFS)</option>
+                    <option value={LoudnessStandard.APPLE_MUSIC} className="bg-[#181818] text-[#F2F2F2] font-sans">Apple Music (-16.0 LUFS)</option>
+                    <option value={LoudnessStandard.TIDAL_DEEZER} className="bg-[#181818] text-[#F2F2F2] font-sans">Tidal / Deezer (-14.0 LUFS)</option>
                   </optgroup>
                   
                   <optgroup label="Music Genres" className="bg-[#181818] text-[#b20000] font-bold text-[10px]">
-                    <option value={LoudnessStandard.GENRE_JUNGLE_DNB} className="bg-[#181818] text-white font-sans">Jungle / DnB (-5.0 LUFS)</option>
-                    <option value={LoudnessStandard.GENRE_EDM} className="bg-[#181818] text-white font-sans">EDM / Club (-6.0 LUFS)</option>
-                    <option value={LoudnessStandard.GENRE_TECHNO_HOUSE} className="bg-[#181818] text-white font-sans">Techno / House (-8.0 LUFS)</option>
-                    <option value={LoudnessStandard.GENRE_ROCK_METAL} className="bg-[#181818] text-white font-sans">Rock / Metal (-9.0 LUFS)</option>
-                    <option value={LoudnessStandard.GENRE_HIPHOP_RAP} className="bg-[#181818] text-white font-sans">Hip-Hop / Rap (-9.0 LUFS)</option>
-                    <option value={LoudnessStandard.GENERIC_MUSIC} className="bg-[#181818] text-white font-sans">Pop Music / Top 40 (-10.0 LUFS)</option>
-                    <option value={LoudnessStandard.GENRE_ACOUSTIC_INDIE} className="bg-[#181818] text-white font-sans">Acoustic / Indie (-12.0 LUFS)</option>
-                    <option value={LoudnessStandard.GENRE_JAZZ} className="bg-[#181818] text-white font-sans">Jazz / Fusion (-15.0 LUFS)</option>
-                    <option value={LoudnessStandard.GENRE_CLASSICAL} className="bg-[#181818] text-white font-sans">Classical / Orchestral (-18.0 LUFS)</option>
+                    <option value={LoudnessStandard.GENRE_JUNGLE_DNB} className="bg-[#181818] text-[#F2F2F2] font-sans">Jungle / DnB (-5.0 LUFS)</option>
+                    <option value={LoudnessStandard.GENRE_EDM} className="bg-[#181818] text-[#F2F2F2] font-sans">EDM / Club (-6.0 LUFS)</option>
+                    <option value={LoudnessStandard.GENRE_TECHNO_HOUSE} className="bg-[#181818] text-[#F2F2F2] font-sans">Techno / House (-8.0 LUFS)</option>
+                    <option value={LoudnessStandard.GENRE_ROCK_METAL} className="bg-[#181818] text-[#F2F2F2] font-sans">Rock / Metal (-9.0 LUFS)</option>
+                    <option value={LoudnessStandard.GENRE_HIPHOP_RAP} className="bg-[#181818] text-[#F2F2F2] font-sans">Hip-Hop / Rap (-9.0 LUFS)</option>
+                    <option value={LoudnessStandard.GENERIC_MUSIC} className="bg-[#181818] text-[#F2F2F2] font-sans">Pop Music / Top 40 (-10.0 LUFS)</option>
+                    <option value={LoudnessStandard.GENRE_ACOUSTIC_INDIE} className="bg-[#181818] text-[#F2F2F2] font-sans">Acoustic / Indie (-12.0 LUFS)</option>
+                    <option value={LoudnessStandard.GENRE_JAZZ} className="bg-[#181818] text-[#F2F2F2] font-sans">Jazz / Fusion (-15.0 LUFS)</option>
+                    <option value={LoudnessStandard.GENRE_CLASSICAL} className="bg-[#181818] text-[#F2F2F2] font-sans">Classical / Orchestral (-18.0 LUFS)</option>
                   </optgroup>
 
                   <optgroup label="Broadcast Standards" className="bg-[#181818] text-[#b20000] font-bold text-[10px]">
-                    <option value={LoudnessStandard.BROADCAST_EBU} className="bg-[#181818] text-white font-sans">EBU R128 (-23.0 LUFS)</option>
-                    <option value={LoudnessStandard.BROADCAST_ATSC} className="bg-[#181818] text-[#cccccc] font-sans">ATSC A/85 (-24.0 LUFS)</option>
+                    <option value={LoudnessStandard.BROADCAST_EBU} className="bg-[#181818] text-[#F2F2F2] font-sans">EBU R128 (-23.0 LUFS)</option>
+                    <option value={LoudnessStandard.BROADCAST_ATSC} className="bg-[#181818] text-[#B8B8B8] font-sans">ATSC A/85 (-24.0 LUFS)</option>
                   </optgroup>
 
                   <optgroup label="Specialty & Mediums" className="bg-[#181818] text-[#b20000] font-bold text-[10px]">
-                    <option value={LoudnessStandard.CINEMATIC_TRAILER} className="bg-[#181818] text-white font-sans">Cinematic Trailer (-13.0 LUFS)</option>
-                    <option value={LoudnessStandard.PODCAST_AUDIOBOOK} className="bg-[#181818] text-white font-sans">Podcast / Audiobook (-16.0 LUFS)</option>
-                    <option value={LoudnessStandard.FILM_MIX} className="bg-[#181818] text-white font-sans">Film Mix (-18.0 LUFS)</option>
+                    <option value={LoudnessStandard.CINEMATIC_TRAILER} className="bg-[#181818] text-[#F2F2F2] font-sans">Cinematic Trailer (-13.0 LUFS)</option>
+                    <option value={LoudnessStandard.PODCAST_AUDIOBOOK} className="bg-[#181818] text-[#F2F2F2] font-sans">Podcast / Audiobook (-16.0 LUFS)</option>
+                    <option value={LoudnessStandard.FILM_MIX} className="bg-[#181818] text-[#F2F2F2] font-sans">Film Mix (-18.0 LUFS)</option>
                   </optgroup>
                 </select>
               </div>
 
               {/* Custom Value Calibration Input */}
               <div className="flex items-center gap-1.5 p-1 bg-[#181818] border border-[#4a4a4a] h-7 justify-between shrink-0">
-                <span className="text-[9px] text-[#aaaaaa] font-sans font-bold pl-1 uppercase tracking-[1px]">Custom Target:</span>
+                <span className="text-[10px] text-[#858585] font-sans font-medium pl-1 uppercase tracking-[1px]">Custom Target:</span>
                 <div className="flex items-center gap-1">
                   <input
                     id="settings-input-custom-lufs"
@@ -445,9 +445,9 @@ export function SettingsPanel({
                         setTargetLoudness(-14);
                       }
                     }}
-                    className="w-12 bg-[#121212] border border-[#4a4a4a] text-white font-sans font-bold text-[10px] text-center focus:outline-none focus:border-white p-0.5 h-5"
+                    className="w-12 bg-[#121212] border border-[#4a4a4a] text-[#F2F2F2] font-sans font-medium text-[11px] text-center focus:outline-none focus:border-white p-0.5 h-5"
                   />
-                  <span className="text-[9px] text-[#aaaaaa] font-sans font-bold pr-1">LUFS</span>
+                  <span className="text-[10px] text-[#858585] font-sans font-medium pr-1">LUFS</span>
                 </div>
               </div>
             </div>
@@ -463,7 +463,7 @@ export function SettingsPanel({
             title="Visualizer Presets: Instantly load a preset layout or store your current settings variables."
           >
             {/* LHS Section Label (Subtitle on hover) */}
-            <div className="w-full md:w-1/4 flex items-center gap-2 text-white font-sans text-[10px] uppercase font-bold tracking-[1.4px] cursor-default select-none shrink-0">
+            <div className="w-full md:w-1/4 flex items-center gap-2 text-[#F2F2F2] font-sans text-[11px] uppercase font-semibold tracking-[1.4px] cursor-default select-none shrink-0">
               <Sliders className="w-3.5 h-3.5 text-[#b20000]" />
               <span>Presets</span>
             </div>
@@ -475,21 +475,21 @@ export function SettingsPanel({
                 <button
                   id="btn-settings-presets-dropdown"
                   onClick={() => setIsPresetDropdownOpen(!isPresetDropdownOpen)}
-                  className="flex items-center justify-between p-1 px-2.5 bg-[#181818] border border-[#4a4a4a] text-[#cccccc] hover:text-white cursor-pointer select-none transition-colors w-full h-7"
+                  className="flex items-center justify-between p-1 px-2.5 bg-[#181818] border border-[#4a4a4a] text-[#B8B8B8] hover:text-[#F2F2F2] cursor-pointer select-none transition-colors w-full h-7"
                 >
-                  <div className="flex items-center gap-1 overflow-hidden">
-                    <span className="text-[9px] font-sans text-[#aaaaaa] uppercase tracking-[1px] font-bold">Load:</span>
-                    <span className="text-[9px] font-sans font-bold text-[#b20000] uppercase tracking-[0.5px] truncate">{activePreset.name}</span>
+                  <div className="flex items-center gap-1.5 overflow-hidden">
+                    <span className="text-[10px] font-sans text-[#858585] uppercase tracking-[1px] font-medium">Load:</span>
+                    <span className="text-[11px] font-sans font-medium text-[#b20000] uppercase tracking-[0.5px] truncate">{activePreset.name}</span>
                   </div>
-                  <span className="text-[7px] text-[#aaaaaa]">▼</span>
+                  <span className="text-[9px] text-[#858585]">▼</span>
                 </button>
 
                 {/* Flyout presets list */}
                 {isPresetDropdownOpen && (
                   <div className="absolute bottom-full mb-1 left-0 right-0 z-50 bg-[#181818] border border-[#4a4a4a] shadow-2xl p-2 flex flex-col gap-1.5 max-h-[160px] overflow-y-auto" id="settings-presets-dropdown-menu">
-                    <div className="text-[8px] uppercase tracking-[1px] font-bold text-white border-b border-[#4a4a4a] pb-1 flex justify-between items-center font-sans">
+                    <div className="text-[10px] uppercase tracking-[1px] font-semibold text-[#F2F2F2] border-b border-[#4a4a4a] pb-1 flex justify-between items-center font-sans">
                       <span>Saved Presets</span>
-                      <span className="text-[8px] uppercase text-[#aaaaaa]">Click to Load</span>
+                      <span className="text-[10px] uppercase text-[#858585]">Click to Load</span>
                     </div>
 
                     <div className="flex flex-col gap-0.5">
@@ -512,7 +512,7 @@ export function SettingsPanel({
                                   type="text"
                                   value={editingPresetName}
                                   onChange={(e) => setEditingPresetName(e.target.value)}
-                                  className="flex-grow bg-[#181818] border border-[#b20000] px-1 text-[9px] text-white focus:outline-none font-sans uppercase tracking-[0.5px]"
+                                  className="flex-grow bg-[#181818] border border-[#b20000] px-1 text-[11px] text-[#F2F2F2] focus:outline-none font-sans uppercase tracking-[0.5px]"
                                   maxLength={24}
                                   autoFocus
                                 />
@@ -542,13 +542,13 @@ export function SettingsPanel({
                             onClick={() => handleLoadPreset(preset)}
                             className={`group relative flex items-center justify-between pl-2 pr-1.5 py-1 border text-left cursor-pointer transition-colors ${
                               isActive 
-                                ? 'bg-[#b20000] border-[#b20000] text-white' 
+                                ? 'bg-[#b20000] border-[#b20000] text-[#F2F2F2]' 
                                 : 'bg-[#121212] border-[#4a4a4a] hover:bg-white hover:text-[#111111]'
                             }`}
                           >
                             <div className="flex flex-col pr-4 overflow-hidden">
-                              <span className="text-[9px] font-sans font-bold uppercase tracking-[0.5px] leading-tight truncate">{preset.name}</span>
-                              <span className="text-[8px] font-sans uppercase tracking-[0.5px] opacity-75 mt-0.5 leading-none">
+                              <span className="text-[11px] font-sans font-medium uppercase tracking-[0.5px] leading-tight truncate">{preset.name}</span>
+                              <span className="text-[10px] font-sans uppercase tracking-[0.5px] opacity-75 mt-0.5 leading-none">
                                 FFT: {preset.config.fftSize} · Smth: {preset.config.smoothing?.toFixed(1)}
                               </span>
                             </div>
@@ -557,21 +557,21 @@ export function SettingsPanel({
                               <div className="flex items-center gap-0.5">
                                 <button
                                   onClick={(e) => handleStartRename(preset.id, preset.name, e)}
-                                  className="text-[#aaaaaa] hover:text-white p-0.5"
+                                  className="text-[#858585] hover:text-[#F2F2F2] p-0.5"
                                   title="Rename"
                                 >
                                   <Pencil className="w-3 h-3" />
                                 </button>
                                 <button
                                   onClick={(e) => handleDeletePreset(preset.id, e)}
-                                  className="text-[#aaaaaa] hover:text-white p-0.5"
+                                  className="text-[#858585] hover:text-[#F2F2F2] p-0.5"
                                   title="Delete"
                                 >
                                   <Trash2 className="w-3 h-3" />
                                 </button>
                               </div>
                             ) : (
-                              <span className="text-[8px] font-sans font-bold uppercase bg-[#181818] text-[#aaaaaa] px-1 py-0.5 border border-[#4a4a4a] leading-none">
+                              <span className="text-[10px] font-sans font-medium uppercase bg-[#181818] text-[#858585] px-1 py-0.5 border border-[#4a4a4a] leading-none">
                                 Core
                               </span>
                             )}
@@ -590,13 +590,13 @@ export function SettingsPanel({
                   placeholder="SAVE CURRENT SETUP..."
                   value={newPresetName}
                   onChange={(e) => setNewPresetName(e.target.value)}
-                  className="flex-grow bg-[#181818] border border-[#4a4a4a] focus:border-white px-2 text-[10px] text-white focus:outline-none font-sans uppercase tracking-[0.5px] h-7 placeholder:text-[#666666]"
+                  className="flex-grow bg-[#181818] border border-[#4a4a4a] focus:border-white px-2 text-[11px] text-[#F2F2F2] focus:outline-none font-sans uppercase tracking-[0.5px] h-7 placeholder:text-[#666666]"
                   maxLength={24}
                 />
                 <button
                   type="submit"
                   disabled={!newPresetName.trim()}
-                  className="px-2.5 bg-[#181818] hover:bg-[#b20000] border border-[#4a4a4a] hover:border-[#b20000] text-white font-sans text-[10px] font-bold uppercase tracking-[1px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap h-7 flex items-center justify-center gap-1 shrink-0"
+                  className="px-2.5 bg-[#181818] hover:bg-[#b20000] border border-[#4a4a4a] hover:border-[#b20000] text-[#F2F2F2] font-sans text-[11px] font-medium uppercase tracking-[0.8px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap h-7 flex items-center justify-center gap-1 shrink-0"
                 >
                   <Save className="w-3 h-3" />
                   <span>Save</span>

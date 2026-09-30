@@ -378,7 +378,7 @@ export function StereoVectorScope({
       width: number,
       height: number
     ) {
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
       ctx.lineWidth = 1;
 
       // Concentric circles
@@ -391,7 +391,7 @@ export function StereoVectorScope({
       ctx.stroke();
 
       // Horizontal / Vertical crosshairs (M / Mono line)
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
       ctx.beginPath();
       ctx.moveTo(centerX, centerY - renderRadius);
       ctx.lineTo(centerX, centerY + renderRadius);
@@ -404,7 +404,7 @@ export function StereoVectorScope({
       ctx.stroke();
 
       // 45-degree Left / Right boundary lines
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
       ctx.beginPath();
       ctx.moveTo(centerX + renderRadius * 0.707, centerY - renderRadius * 0.707);
       ctx.lineTo(centerX - renderRadius * 0.707, centerY + renderRadius * 0.707);
@@ -416,14 +416,14 @@ export function StereoVectorScope({
       ctx.stroke();
 
       // Labels
-      ctx.font = '10px "Geist Pixel", monospace';
-      ctx.fillStyle = '#ffffff';
+      ctx.font = '500 11px "Geist Mono", monospace';
+      ctx.fillStyle = '#B8B8B8';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('M (MONO)', centerX, centerY - renderRadius - 8);
-      ctx.fillText('S (SIDE)', centerX - renderRadius - 15, centerY);
-      ctx.fillText('L', centerX - renderRadius * 0.707 - 8, centerY - renderRadius * 0.707 - 8);
-      ctx.fillText('R', centerX + renderRadius * 0.707 + 8, centerY - renderRadius * 0.707 - 8);
+      ctx.fillText('M (MONO)', centerX, centerY - renderRadius - 9);
+      ctx.fillText('S (SIDE)', centerX - renderRadius - 16, centerY);
+      ctx.fillText('L', centerX - renderRadius * 0.707 - 9, centerY - renderRadius * 0.707 - 9);
+      ctx.fillText('R', centerX + renderRadius * 0.707 + 9, centerY - renderRadius * 0.707 - 9);
     }
 
     draw();

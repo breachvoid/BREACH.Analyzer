@@ -37,7 +37,6 @@ import { ResetButton, PopOutButton } from './SharedButtons';
 import { SettingsPanel } from './SettingsPanel';
 import { VisualSettingsPanel } from './VisualSettingsPanel';
 import { AudioFileRegistry, fetchPartialArrayBuffer, getAudioFileSize } from '../utils';
-import { generateDemoTrackWavBlob } from '../utils/demoTrack';
 
 interface PlaylistItem {
   id: string;
@@ -46,14 +45,7 @@ interface PlaylistItem {
   isDemo?: boolean;
 }
 
-const DEFAULT_PLAYLIST: PlaylistItem[] = [
-  {
-    id: 'track_calibration_ref',
-    name: 'BREACH. Audio Calibration Reference (124 BPM)',
-    url: 'demo://calibration',
-    isDemo: true
-  }
-];
+const DEFAULT_PLAYLIST: PlaylistItem[] = [];
 
 interface SourceSelectorProps {
   onSourceChanged: (type: AudioSourceType) => void;
@@ -124,33 +116,25 @@ export function SourceSelector({
   const [hoveredDropdown, setHoveredDropdown] = useState<AudioSourceType | null>(null);
 
   const [playlist, setPlaylist] = useState<PlaylistItem[]>(() => {
-    return [
-      ...DEFAULT_PLAYLIST,
-      ...SafeStorage.get<PlaylistItem[]>('breach_music_playlist', [], (val) => Array.isArray(val))
-    ];
+    const stored = SafeStorage.get<PlaylistItem[]>('breach_music_playlist', [], (val) => Array.isArray(val));
+    // Filter out any legacy demo tracks from storage
+    return stored.filter(item => !item.isDemo && !item.url.startsWith('demo://') && !item.name.includes('Calibration') && !item.name.includes('Haelo') && !item.name.includes('ℋaelo'));
   });
 
   // Sync custom playlist items back to SafeStorage safely
   useEffect(() => {
-    const customOnly = playlist.filter(item => !item.isDemo && !item.url.startsWith('blob:'));
+    const customOnly = playlist.filter(item => !item.isDemo && !item.url.startsWith('demo://') && !item.url.startsWith('blob:'));
     SafeStorage.set('breach_music_playlist', customOnly);
   }, [playlist]);
 
-  // Generate real audio WAV blob for demo reference track
+  // Purge any stale demo track URLs from active selection
   useEffect(() => {
-    try {
-      const blob = generateDemoTrackWavBlob();
-      const blobUrl = URL.createObjectURL(blob);
-      setPlaylist(prev => prev.map(item => item.isDemo ? { ...item, url: blobUrl } : item));
-      if (!fileUrl || fileUrl.startsWith('demo://')) {
-        setFileUrl(blobUrl);
-        if (audioRef.current) {
-          audioRef.current.src = blobUrl;
-          audioRef.current.load();
-        }
+    if (fileUrl.startsWith('demo://') || fileName.includes('Calibration') || fileName.includes('Haelo') || fileName.includes('ℋaelo')) {
+      setFileUrl('');
+      setFileName('');
+      if (audioRef.current) {
+        audioRef.current.src = '';
       }
-    } catch (e) {
-      console.warn('Could not generate demo audio blob:', e);
     }
   }, []);
 
@@ -211,6 +195,14 @@ export function SourceSelector({
   const [studioTab, setStudioTab] = useState<'file' | 'visual' | 'settings'>('file');
   const [uploadError, setUploadError] = useState<string>('');
 
+  // Always default Studio Deck opening to "File"
+  useEffect(() => {
+    setStudioTab('file');
+    if (showSettings && onToggleSettings) {
+      onToggleSettings();
+    }
+  }, []);
+
   // Synchronize internal tab selection when showSettings has been changed externally
   useEffect(() => {
     if (showSettings) {
@@ -250,10 +242,10 @@ export function SourceSelector({
       <button
         type="button"
         onClick={() => handleTabClick('file')}
-        className={`flex items-center gap-1.5 px-2.5 py-1 border font-sans text-[10px] font-bold uppercase tracking-[1px] transition-colors duration-150 cursor-pointer ${
+        className={`flex items-center gap-1.5 px-2.5 py-1 border font-sans text-[11px] font-medium uppercase tracking-[0.8px] transition-colors duration-150 cursor-pointer ${
           studioTab === 'file'
-            ? 'bg-[#b20000] border-[#b20000] text-white'
-            : 'bg-[#181818] border-[#4a4a4a] text-[#cccccc] hover:bg-white hover:text-[#111111] hover:border-white'
+            ? 'bg-[#b20000] border-[#b20000] text-[#F2F2F2]'
+            : 'bg-[#181818] border-[#4a4a4a] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2]'
         }`}
         id={`${idPrefix}tab-btn-file`}
       >
@@ -265,10 +257,10 @@ export function SourceSelector({
       <button
         type="button"
         onClick={() => handleTabClick('visual')}
-        className={`flex items-center gap-1.5 px-2.5 py-1 border font-sans text-[10px] font-bold uppercase tracking-[1px] transition-colors duration-150 cursor-pointer ${
+        className={`flex items-center gap-1.5 px-2.5 py-1 border font-sans text-[11px] font-medium uppercase tracking-[0.8px] transition-colors duration-150 cursor-pointer ${
           studioTab === 'visual'
-            ? 'bg-[#b20000] border-[#b20000] text-white'
-            : 'bg-[#181818] border-[#4a4a4a] text-[#cccccc] hover:bg-white hover:text-[#111111] hover:border-white'
+            ? 'bg-[#b20000] border-[#b20000] text-[#F2F2F2]'
+            : 'bg-[#181818] border-[#4a4a4a] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2]'
         }`}
         id={`${idPrefix}tab-btn-visual`}
       >
@@ -280,10 +272,10 @@ export function SourceSelector({
       <button
         type="button"
         onClick={() => handleTabClick('settings')}
-        className={`flex items-center gap-1.5 px-2.5 py-1 border font-sans text-[10px] font-bold uppercase tracking-[1px] transition-colors duration-150 cursor-pointer ${
+        className={`flex items-center gap-1.5 px-2.5 py-1 border font-sans text-[11px] font-medium uppercase tracking-[0.8px] transition-colors duration-150 cursor-pointer ${
           studioTab === 'settings'
-            ? 'bg-[#b20000] border-[#b20000] text-white'
-            : 'bg-[#181818] border-[#4a4a4a] text-[#cccccc] hover:bg-white hover:text-[#111111] hover:border-white'
+            ? 'bg-[#b20000] border-[#b20000] text-[#F2F2F2]'
+            : 'bg-[#181818] border-[#4a4a4a] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2]'
         }`}
         id={`${idPrefix}tab-btn-settings`}
       >
@@ -380,11 +372,7 @@ export function SourceSelector({
       return;
     }
 
-    let targetUrl = item.url;
-    if (targetUrl.startsWith('demo://')) {
-      const blob = generateDemoTrackWavBlob();
-      targetUrl = URL.createObjectURL(blob);
-    }
+    const targetUrl = item.url;
 
     setFileName(item.name);
     setFileUrl(targetUrl);
@@ -671,13 +659,13 @@ export function SourceSelector({
         {/* Add Custom URL Link Form */}
         {showAddUrlForm && (
           <form onSubmit={handleAddCustomUrl} className="mb-3 bg-[#181818] border border-[#4a4a4a] p-3 flex flex-col gap-2 animate-slide-down">
-            <span className="text-[10px] font-sans text-[#aaaaaa] uppercase font-bold tracking-[1.2px]">Add Custom Track Stream Link</span>
+            <span className="text-[11px] font-sans text-[#B8B8B8] uppercase font-semibold tracking-[1px]">Add Custom Track Stream Link</span>
             <input
               type="text"
               placeholder="Track Name (e.g. Bass Station)"
               value={customName}
               onChange={(e) => setCustomName(e.target.value)}
-              className="bg-[#121212] border border-[#4a4a4a] focus:border-[#888888] px-2.5 py-1.5 text-[11px] text-white focus:outline-none"
+              className="bg-[#121212] border border-[#4a4a4a] focus:border-[#888888] px-2.5 py-1.5 text-[11px] text-[#F2F2F2] focus:outline-none"
               maxLength={32}
             />
             <div className="flex gap-2">
@@ -686,12 +674,12 @@ export function SourceSelector({
                 placeholder="Stream URL (e.g. https://.../stream.mp3)"
                 value={customUrl}
                 onChange={(e) => setCustomUrl(e.target.value)}
-                className="flex-grow bg-[#121212] border border-[#4a4a4a] focus:border-[#888888] px-2.5 py-1.5 text-[11px] text-white focus:outline-none font-mono"
+                className="flex-grow bg-[#121212] border border-[#4a4a4a] focus:border-[#888888] px-2.5 py-1.5 text-[11px] text-[#F2F2F2] focus:outline-none font-mono"
                 required
               />
               <button
                 type="submit"
-                className="bg-[#b20000] hover:opacity-90 text-white font-sans text-[10px] uppercase tracking-[1px] px-3 py-1.5 font-bold cursor-pointer transition-opacity"
+                className="bg-[#b20000] hover:opacity-90 text-[#F2F2F2] font-sans text-[11px] uppercase tracking-[0.8px] px-3 py-1.5 font-medium cursor-pointer transition-opacity"
               >
                 Add
               </button>
@@ -700,7 +688,7 @@ export function SourceSelector({
         )}
 
         {uploadError && (
-          <div className="bg-[#b20000]/20 border-b border-[#b20000] px-3 py-2 text-[10px] font-sans font-bold text-[#ff6666] flex items-center justify-between gap-2 shrink-0 select-none" id="playlist-upload-error-banner">
+          <div className="bg-[#b20000]/20 border-b border-[#b20000] px-3 py-2 text-[11px] font-sans font-semibold text-[#ff6666] flex items-center justify-between gap-2 shrink-0 select-none" id="playlist-upload-error-banner">
             <div className="flex items-center gap-1.5 truncate">
               <AlertTriangle className="w-3.5 h-3.5 text-[#ff6666] shrink-0" />
               <span className="truncate">{uploadError}</span>
@@ -708,7 +696,7 @@ export function SourceSelector({
             <button
               type="button"
               onClick={() => setUploadError('')}
-              className="text-[#aaaaaa] hover:text-white cursor-pointer px-1 text-[10px] font-mono shrink-0"
+              className="text-[#B8B8B8] hover:text-[#F2F2F2] cursor-pointer px-1 text-[11px] font-mono shrink-0"
               title="Dismiss warning"
             >
               ✕
@@ -749,44 +737,40 @@ export function SourceSelector({
                 className={`flex items-center justify-between p-2.5 border-b border-[#4a4a4a] text-left cursor-pointer transition-colors duration-150 group shrink-0 ${
                   isCurrent 
                     ? 'bg-[#191919] border-l-4 border-l-[#b20000]' 
-                    : 'bg-transparent hover:bg-[#191919] text-[#cccccc] hover:text-white'
+                    : 'bg-transparent hover:bg-[#191919] text-[#B8B8B8] hover:text-[#F2F2F2]'
                 }`}
               >
                 <div className="flex items-center gap-2.5 truncate pr-2 flex-grow">
                   {isCurrent && isPlaybackActive ? (
                     <Activity className="w-3.5 h-3.5 text-[#b20000] shrink-0" />
                   ) : (
-                    <Volume2 className={`w-3.5 h-3.5 shrink-0 ${isCurrent ? 'text-[#b20000]' : 'text-[#aaaaaa]'}`} />
+                    <Volume2 className={`w-3.5 h-3.5 shrink-0 ${isCurrent ? 'text-[#b20000]' : 'text-[#858585]'}`} />
                   )}
                   
                   {/* Name of Track */}
-                  <span className="text-[11px] font-sans font-bold truncate leading-tight flex-grow text-white">
+                  <span className="text-[12px] font-sans font-semibold truncate leading-tight flex-grow text-[#F2F2F2]">
                     {track.name}
                   </span>
 
                   {/* Codec/Sample Rate badge */}
-                  <span className={`text-[8px] font-mono px-1.5 py-0.5 leading-none shrink-0 font-bold uppercase tracking-tight border ${
+                  <span className={`text-[10px] font-mono px-1.5 py-0.5 leading-none shrink-0 font-medium uppercase tracking-tight border ${
                     isCurrent 
-                      ? 'text-white bg-[#b20000] border-[#b20000]' 
-                      : 'text-[#aaaaaa] bg-[#121212] border-[#4a4a4a]'
+                      ? 'text-[#F2F2F2] bg-[#b20000] border-[#b20000]' 
+                      : 'text-[#B8B8B8] bg-[#121212] border-[#4a4a4a]'
                   }`}>
                     {fileBadge}
                   </span>
                 </div>
                 
                 <div className="flex items-center gap-1.5 shrink-0">
-                  {track.isDemo ? (
-                    <span className="text-[8px] font-mono bg-[#121212] border border-[#4a4a4a] text-[#aaaaaa] px-1.5 py-0.5 leading-none font-bold uppercase">Demo</span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={(e) => handleRemoveTrack(track.id, e)}
-                      className="text-[#aaaaaa] hover:text-[#b20000] p-1 transition-colors cursor-pointer"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => handleRemoveTrack(track.id, e)}
+                    className="text-[#858585] hover:text-[#b20000] p-1 transition-colors cursor-pointer"
+                    title="Delete track"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             );
@@ -797,19 +781,19 @@ export function SourceSelector({
               onClick={() => fileInputRef.current?.click()}
               className={`flex-grow flex flex-col items-center justify-center border border-dashed border-[#4a4a4a] hover:border-[#888888] py-12 px-6 text-center m-3 transition-colors cursor-pointer select-none ${
                 dragActive 
-                  ? 'bg-[#191919] text-white border-[#b20000]' 
-                  : 'bg-[#181818] text-[#aaaaaa] hover:bg-[#191919]'
+                  ? 'bg-[#191919] text-[#F2F2F2] border-[#b20000]' 
+                  : 'bg-[#181818] text-[#B8B8B8] hover:bg-[#191919]'
               }`} 
               id="empty-drag-drop-zone"
             >
-              <Upload className={`w-8 h-8 mb-3 transition-colors ${dragActive ? 'text-[#b20000]' : 'text-[#aaaaaa]'}`} />
-              <p className="text-[11px] font-sans uppercase font-bold tracking-[1.2px] mb-1 text-white">
+              <Upload className={`w-8 h-8 mb-3 transition-colors ${dragActive ? 'text-[#b20000]' : 'text-[#858585]'}`} />
+              <p className="text-[12px] font-sans uppercase font-semibold tracking-[1.2px] mb-1 text-[#F2F2F2]">
                 DRAG & DROP AUDIO HERE
               </p>
-              <p className="text-[10px] font-sans text-[#b20000] font-bold tracking-[1px] mb-1 uppercase">
+              <p className="text-[11px] font-sans text-[#b20000] font-semibold tracking-[1px] mb-1 uppercase">
                 or click to browse local files
               </p>
-              <p className="text-[9px] font-mono text-[#aaaaaa] leading-normal">
+              <p className="text-[10px] font-mono text-[#858585] leading-normal">
                 Supports MP3, WAV, FLAC, M4A, OGG
               </p>
             </div>
@@ -834,39 +818,39 @@ export function SourceSelector({
                 </div>
                 <div className="min-w-0 flex-grow text-left">
                   {fileName && (
-                    <p className="text-[10px] uppercase font-sans text-[#b20000] font-bold tracking-[1.2px] mb-0.5">
+                    <p className="text-[10px] uppercase font-sans text-[#b20000] font-semibold tracking-[1px] mb-0.5">
                       CURRENT FILE LOADED
                     </p>
                   )}
-                  <p className="text-[13px] font-sans font-bold text-white truncate tracking-tight leading-tight" title={fileName || 'No Ref Track Active'}>
+                  <p className="text-[13px] font-sans font-semibold text-[#F2F2F2] truncate tracking-tight leading-tight" title={fileName || 'No Ref Track Active'}>
                     {fileName || 'No track selected'}
                   </p>
                   {fileName ? (
-                    <div className="flex items-center flex-wrap gap-x-4 gap-y-1 mt-1 text-[9px] font-mono text-[#aaaaaa]">
+                    <div className="flex items-center flex-wrap gap-x-4 gap-y-1 mt-1 text-[10px] font-mono text-[#858585]">
                       {/* Sample Rate */}
                       <div className="flex items-center gap-1">
-                        <Cpu className="w-3 h-3 text-[#aaaaaa] shrink-0" />
-                        <span className="font-semibold text-[#aaaaaa]">Rate:</span>
-                        <span className="text-white font-bold">{streamMetadata && streamMetadata.sampleRate > 0 ? (streamMetadata.sampleRate / 1000).toFixed(1) + ' kHz' : '44.1 kHz'}</span>
+                        <Cpu className="w-3 h-3 text-[#858585] shrink-0" />
+                        <span className="font-medium text-[#858585]">Rate:</span>
+                        <span className="text-[#F2F2F2] font-semibold">{streamMetadata && streamMetadata.sampleRate > 0 ? (streamMetadata.sampleRate / 1000).toFixed(1) + ' kHz' : '44.1 kHz'}</span>
                       </div>
                       {/* Bitrate */}
                       <div className="flex items-center gap-1">
-                        <Sliders className="w-3 h-3 text-[#aaaaaa] shrink-0" />
-                        <span className="font-semibold text-[#aaaaaa]">Specs:</span>
-                        <span className="text-white font-bold">
+                        <Sliders className="w-3 h-3 text-[#858585] shrink-0" />
+                        <span className="font-medium text-[#858585]">Specs:</span>
+                        <span className="text-[#F2F2F2] font-semibold">
                           {streamMetadata && streamMetadata.bitrate > 0 
                             ? (streamMetadata.bitrate / 1000).toFixed(0) + ' kbps' 
                             : 'Est. Premium VBR'} 
                         </span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Activity className="w-3 h-3 text-[#aaaaaa] shrink-0" />
-                        <span className="font-semibold text-[#aaaaaa]">Codec:</span>
-                        <span className="text-white font-bold">{streamMetadata && streamMetadata.codec ? streamMetadata.codec.toUpperCase() : 'MPEG-3'}</span>
+                        <Activity className="w-3 h-3 text-[#858585] shrink-0" />
+                        <span className="font-medium text-[#858585]">Codec:</span>
+                        <span className="text-[#F2F2F2] font-semibold">{streamMetadata && streamMetadata.codec ? streamMetadata.codec.toUpperCase() : 'MPEG-3'}</span>
                       </div>
                     </div>
                   ) : (
-                    <p className="text-[10px] font-sans text-[#aaaaaa] leading-normal mt-1">
+                    <p className="text-[11px] font-sans text-[#858585] leading-normal mt-1">
                       Load standard linear format WAV PCM, FLAC Lossless, or encoded VBR MP3 calibration references.
                     </p>
                   )}
@@ -882,7 +866,7 @@ export function SourceSelector({
                 >
                   {/* Progress bar timeline slider */}
                   <div className="flex items-center gap-3 w-full" id="deck-timeline-slider-row">
-                    <span className="text-[10px] font-mono text-[#aaaaaa] w-8 select-none tracking-tighter shrink-0">{formatTime(fileCurrentTime)}</span>
+                    <span className="text-[11px] font-mono text-[#B8B8B8] w-9 select-none tracking-tighter shrink-0">{formatTime(fileCurrentTime)}</span>
                     <input
                       id="timeline-progress-scrubber"
                       type="range"
@@ -893,7 +877,7 @@ export function SourceSelector({
                       onChange={handleTimelineScrub}
                       className="flex-grow h-1 accent-[#b20000] bg-[#121212] cursor-pointer outline-none"
                     />
-                    <span className="text-[10px] font-mono text-[#aaaaaa] w-8 select-none tracking-tighter shrink-0">{formatTime(fileDuration)}</span>
+                    <span className="text-[11px] font-mono text-[#B8B8B8] w-9 select-none tracking-tighter shrink-0">{formatTime(fileDuration)}</span>
                   </div>
 
                   {/* Playlist Queue Controller Strip */}
@@ -910,10 +894,10 @@ export function SourceSelector({
                         onClick={() => {
                           setLoopTrack(!loopTrack);
                         }}
-                        className={`w-[105px] h-6 flex items-center justify-center p-0 text-center border font-sans text-[9px] font-bold uppercase tracking-[1px] cursor-pointer transition-colors duration-150 shrink-0 ${
+                        className={`w-[110px] h-6 flex items-center justify-center p-0 text-center border font-sans text-[10px] font-medium uppercase tracking-[0.8px] cursor-pointer transition-colors duration-150 shrink-0 ${
                           loopTrack
-                            ? 'bg-[#b20000] border-[#b20000] text-white'
-                            : 'bg-[#121212] border-[#4a4a4a] text-[#cccccc] hover:bg-white hover:text-[#111111] hover:border-white'
+                            ? 'bg-[#b20000] border-[#b20000] text-[#F2F2F2]'
+                            : 'bg-[#121212] border-[#4a4a4a] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2]'
                         }`}
                         title="Loop the currently active/playing reference track indefinitely"
                       >
@@ -925,10 +909,10 @@ export function SourceSelector({
                         onClick={() => {
                           setAutoplayNext(!autoplayNext);
                         }}
-                        className={`w-[105px] h-6 flex items-center justify-center p-0 text-center border font-sans text-[9px] font-bold uppercase tracking-[1px] cursor-pointer transition-colors duration-150 shrink-0 ${
+                        className={`w-[110px] h-6 flex items-center justify-center p-0 text-center border font-sans text-[10px] font-medium uppercase tracking-[0.8px] cursor-pointer transition-colors duration-150 shrink-0 ${
                           autoplayNext
-                            ? 'bg-[#b20000] border-[#b20000] text-white'
-                            : 'bg-[#121212] border-[#4a4a4a] text-[#cccccc] hover:bg-white hover:text-[#111111] hover:border-white'
+                            ? 'bg-[#b20000] border-[#b20000] text-[#F2F2F2]'
+                            : 'bg-[#121212] border-[#4a4a4a] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2]'
                         }`}
                         title="Automatically step and advance to play the subsequent track upon completion"
                       >
@@ -955,7 +939,7 @@ export function SourceSelector({
                           setTimeout(() => setAnimatePrev(false), 200);
                         }}
                         disabled={playlist.length <= 1 || playlist.findIndex(track => track.url === fileUrl) <= 0}
-                        className="w-[34px] h-[34px] flex items-center justify-center border border-[#4a4a4a] bg-[#121212] text-[#cccccc] hover:bg-white hover:text-[#111111] hover:border-white transition-colors duration-150 shrink-0 p-0 cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
+                        className="w-[34px] h-[34px] flex items-center justify-center border border-[#4a4a4a] bg-[#121212] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2] transition-colors duration-150 shrink-0 p-0 cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
                         title="Back to previous track"
                       >
                         <SkipBack className="w-3.5 h-3.5 fill-current" />
@@ -974,8 +958,8 @@ export function SourceSelector({
                         }}
                         className={`w-[46px] h-[46px] flex items-center justify-center shrink-0 transition-all select-none cursor-pointer duration-150 p-0 border ${
                           isPlaying
-                            ? 'bg-[#b20000] border-[#b20000] text-white hover:opacity-90'
-                            : 'bg-[#121212] border-2 border-[#b20000] text-[#b20000] hover:bg-[#b20000] hover:text-white'
+                            ? 'bg-[#b20000] border-[#b20000] text-[#F2F2F2] hover:opacity-90'
+                            : 'bg-[#121212] border-2 border-[#b20000] text-[#b20000] hover:bg-[#b20000] hover:text-[#F2F2F2]'
                         }`}
                         title={isPlaying ? "Instantly pause reference file monitoring" : "Resume reference file monitoring"}
                       >
@@ -999,7 +983,7 @@ export function SourceSelector({
                           setTimeout(() => setAnimateNext(false), 200);
                         }}
                         disabled={playlist.length <= 1 || playlist.findIndex(track => track.url === fileUrl) === -1 || playlist.findIndex(track => track.url === fileUrl) === playlist.length - 1}
-                        className="w-[34px] h-[34px] flex items-center justify-center border border-[#4a4a4a] bg-[#121212] text-[#cccccc] hover:bg-white hover:text-[#111111] hover:border-white transition-colors duration-150 shrink-0 p-0 cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
+                        className="w-[34px] h-[34px] flex items-center justify-center border border-[#4a4a4a] bg-[#121212] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2] transition-colors duration-150 shrink-0 p-0 cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
                         title="Skip forward to subsequent track"
                       >
                         <SkipForward className="w-3.5 h-3.5 fill-current" />
@@ -1082,7 +1066,7 @@ export function SourceSelector({
               <div className="bg-[#181818] border border-[#4a4a4a] flex items-center justify-center overflow-hidden w-6 h-6 p-0.5">
                 <img src="/breach_logo.png" alt="Studio Deck" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
               </div>
-              <h3 className="text-xs font-bold tracking-[1.4px] text-white font-sans uppercase">
+              <h3 className="text-xs font-semibold tracking-[1.4px] text-[#F2F2F2] font-sans uppercase">
                 Studio Deck
               </h3>
             </div>
@@ -1105,7 +1089,7 @@ export function SourceSelector({
                 <button
                   type="button"
                   onClick={() => setIsDeckPoppedOut?.(false)}
-                  className="px-2.5 h-[28px] bg-[#181818] border border-[#4a4a4a] text-white hover:bg-white hover:text-[#111111] hover:border-white font-sans text-[9px] font-bold uppercase tracking-[1.2px] cursor-pointer flex items-center justify-center transition-colors duration-150"
+                  className="px-2.5 h-[28px] bg-[#181818] border border-[#4a4a4a] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2] font-sans text-[11px] font-medium uppercase tracking-[0.8px] cursor-pointer flex items-center justify-center transition-colors duration-150"
                   id="btn-dock-quick-deck"
                 >
                   DOCK
@@ -1129,15 +1113,15 @@ export function SourceSelector({
                   <img src="/breach_logo.png" alt="Studio Deck" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                 </div>
                 <div className="space-y-1 max-w-xs">
-                  <h3 className="text-[10px] font-bold text-white font-sans tracking-[1.2px] uppercase">Studio Deck Popped Out</h3>
-                  <p className="text-[9px] text-[#aaaaaa] font-sans leading-normal">
+                  <h3 className="text-[11px] font-semibold text-[#F2F2F2] font-sans tracking-[1.2px] uppercase">Studio Deck Popped Out</h3>
+                  <p className="text-[10px] text-[#858585] font-sans leading-normal">
                     The audio source selector, signal generator, and calibration suite is active in a floating window.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsDeckPoppedOut(false)}
-                  className="px-3 py-1.5 text-[9px] uppercase font-sans font-bold tracking-[1.2px] bg-[#181818] text-[#b20000] border border-[#4a4a4a] hover:bg-[#b20000] hover:text-white transition-colors cursor-pointer"
+                  className="px-3 py-1.5 text-[11px] uppercase font-sans font-medium tracking-[0.8px] bg-[#181818] text-[#b20000] border border-[#4a4a4a] hover:bg-[#b20000] hover:text-white transition-colors cursor-pointer"
                   id="btn-redock-deck"
                 >
                   Dock Studio Deck
@@ -1164,7 +1148,7 @@ export function SourceSelector({
               <div className="bg-[#181818] border border-[#4a4a4a] flex items-center justify-center overflow-hidden w-6 h-6 p-0.5">
                 <img src="/breach_logo.png" alt="Playlist" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
               </div>
-              <h3 className="text-xs font-bold tracking-[1.4px] text-white font-sans uppercase">
+              <h3 className="text-xs font-semibold tracking-[1.4px] text-[#F2F2F2] font-sans uppercase">
                 Playlist Queue
               </h3>
             </div>
@@ -1176,7 +1160,7 @@ export function SourceSelector({
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center justify-center h-[28px] px-2.5 border border-[#4a4a4a] bg-[#181818] text-[#cccccc] hover:bg-white hover:text-[#111111] hover:border-white font-sans text-[9px] font-bold uppercase transition-colors duration-150 cursor-pointer tracking-[1px]"
+                    className="flex items-center justify-center h-[28px] px-2.5 border border-[#4a4a4a] bg-[#181818] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2] font-sans text-[11px] font-medium uppercase transition-colors duration-150 cursor-pointer tracking-[0.8px]"
                     title="Upload local files"
                     id="btn-add-file"
                   >
@@ -1185,7 +1169,7 @@ export function SourceSelector({
                   <button
                     type="button"
                     onClick={() => setShowAddUrlForm(!showAddUrlForm)}
-                    className="flex items-center justify-center h-[28px] px-2.5 border border-[#4a4a4a] bg-[#181818] text-[#cccccc] hover:bg-white hover:text-[#111111] hover:border-white font-sans text-[9px] font-bold uppercase transition-colors duration-150 cursor-pointer tracking-[1px]"
+                    className="flex items-center justify-center h-[28px] px-2.5 border border-[#4a4a4a] bg-[#181818] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2] font-sans text-[11px] font-medium uppercase transition-colors duration-150 cursor-pointer tracking-[0.8px]"
                     title="Add track link"
                     id="btn-add-link"
                   >
@@ -1211,7 +1195,7 @@ export function SourceSelector({
                       setIsPlaying(false);
                       audioAnalyzer.stop();
                     }}
-                    className="border border-[#4a4a4a] bg-[#181818] text-[#aaaaaa] hover:bg-white hover:text-[#111111] hover:border-white transition-colors duration-150 flex items-center justify-center cursor-pointer flex-shrink-0 h-[28px] w-[28px]"
+                    className="border border-[#4a4a4a] bg-[#181818] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2] transition-colors duration-150 flex items-center justify-center cursor-pointer flex-shrink-0 h-[28px] w-[28px]"
                     title="Clear Playlist Queue"
                     id="btn-wipe-playlist"
                   >
@@ -1225,7 +1209,7 @@ export function SourceSelector({
                 <button
                   type="button"
                   onClick={() => setIsPlaylistPoppedOut?.(false)}
-                  className="px-2.5 h-[28px] bg-[#181818] border border-[#4a4a4a] text-white hover:bg-white hover:text-[#111111] hover:border-white font-sans text-[9px] font-bold uppercase tracking-[1.2px] cursor-pointer flex items-center justify-center transition-colors duration-150"
+                  className="px-2.5 h-[28px] bg-[#181818] border border-[#4a4a4a] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111] hover:border-[#F2F2F2] font-sans text-[11px] font-medium uppercase tracking-[0.8px] cursor-pointer flex items-center justify-center transition-colors duration-150"
                   id="btn-dock-quick"
                 >
                   DOCK
@@ -1250,15 +1234,15 @@ export function SourceSelector({
                   <img src="/breach_logo.png" alt="Playlist" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                 </div>
                 <div className="space-y-1 max-w-xs">
-                  <h3 className="text-[10px] font-bold text-white font-sans tracking-[1.2px] uppercase">Playlist Popped Out</h3>
-                  <p className="text-[9px] text-[#aaaaaa] font-sans leading-normal">
+                  <h3 className="text-[11px] font-semibold text-[#F2F2F2] font-sans tracking-[1.2px] uppercase">Playlist Popped Out</h3>
+                  <p className="text-[10px] text-[#858585] font-sans leading-normal">
                     The playlist queue container has been popped out to an independent floating manager window.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsPlaylistPoppedOut(false)}
-                  className="px-3 py-1.5 text-[9px] uppercase font-sans font-bold tracking-[1.2px] bg-[#181818] text-[#b20000] border border-[#4a4a4a] hover:bg-[#b20000] hover:text-white transition-colors cursor-pointer"
+                  className="px-3 py-1.5 text-[11px] uppercase font-sans font-medium tracking-[0.8px] bg-[#181818] text-[#b20000] border border-[#4a4a4a] hover:bg-[#b20000] hover:text-white transition-colors cursor-pointer"
                   id="btn-redock-playlist"
                 >
                   Dock Playlist

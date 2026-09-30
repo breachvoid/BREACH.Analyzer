@@ -69,11 +69,11 @@ export function DJWaveformDeck({
   // Playback & Timing State
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
-  const [bpm, setBpm] = useState<number>(124.0);
+  const [bpm, setBpm] = useState<number>(106.6);
   const [isBpmEditing, setIsBpmEditing] = useState<boolean>(false);
-  const [bpmInputVal, setBpmInputVal] = useState<string>('124.00');
-  const [musicalKey, setMusicalKey] = useState<string>('Fm');
-  const [camelotKey, setCamelotKey] = useState<string>('4A');
+  const [bpmInputVal, setBpmInputVal] = useState<string>('106.60');
+  const [musicalKey, setMusicalKey] = useState<string>('Am');
+  const [camelotKey, setCamelotKey] = useState<string>('8A');
   const [gridOffset, setGridOffset] = useState<number>(0.12);
   const [isGridLocked, setIsGridLocked] = useState<boolean>(true);
   const [zoomLevel, setZoomLevel] = useState<number>(3.5);
@@ -890,17 +890,17 @@ export function DJWaveformDeck({
             {/* Track Title, Specs, & Format */}
             <div className="min-w-0 flex flex-col">
               <div className="flex items-center gap-2">
-                <span className="text-[12px] font-sans font-bold text-white tracking-wide truncate max-w-[280px] sm:max-w-[420px]" title={fileName || 'Real-Time Audio Stream'}>
-                  {fileName || 'Real-Time Master Audio Stream'}
+                <span className="text-[13px] font-sans font-semibold text-[#F2F2F2] tracking-wide truncate max-w-[280px] sm:max-w-[420px]" title={fileName || 'No Audio Track Loaded'}>
+                  {fileName || 'No Audio Track Loaded'}
                 </span>
-                <span className="text-[9px] font-mono px-1.5 py-0.2 bg-[#222222] border border-[#444444] text-[#aaaaaa] font-semibold uppercase">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-[#222222] border border-[#4a4a4a] text-[#B8B8B8] font-medium uppercase">
                   {audioFormatBadge}
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-[10px] font-mono text-[#888888] mt-0.5">
+              <div className="flex items-center gap-2 text-[11px] font-mono text-[#858585] mt-0.5">
                 <span className="flex items-center gap-1">
                   <span className={`w-1.5 h-1.5 rounded-full ${isPlaying ? 'bg-[#00FF66] shadow-[0_0_6px_#00FF66]' : 'bg-[#555555]'}`} />
-                  <span className="font-bold text-[#cccccc]">{isPlaying ? (isFrozen ? 'FROZEN INSPECTION' : 'LIVE 60FPS SCROLLING') : 'STANDBY'}</span>
+                  <span className="font-semibold text-[#B8B8B8]">{isPlaying ? (isFrozen ? 'FROZEN INSPECTION' : 'LIVE 60FPS SCROLLING') : 'STANDBY'}</span>
                 </span>
                 <span>•</span>
                 <span>Bar Grid: {bpm.toFixed(2)} BPM</span>
@@ -912,28 +912,28 @@ export function DJWaveformDeck({
           <div className="flex items-center gap-4 text-right shrink-0">
             {/* Elapsed Time */}
             <div className="flex flex-col items-end">
-              <span className="text-[9px] uppercase font-sans font-bold text-[#888888] tracking-wider">ELAPSED</span>
-              <span className="text-[14px] font-mono font-bold text-white tabular-nums tracking-wide">
+              <span className="text-[10px] uppercase font-sans font-medium text-[#858585] tracking-wider">ELAPSED</span>
+              <span className="text-[15px] font-mono font-semibold text-[#F2F2F2] tabular-nums tracking-wide">
                 {formatElapsed(currentTime)}
               </span>
             </div>
 
             {/* Remaining Time */}
             <div className="flex flex-col items-end">
-              <span className="text-[9px] uppercase font-sans font-bold text-[#888888] tracking-wider">REMAINING</span>
-              <span className="text-[14px] font-mono font-bold text-[#b20000] tabular-nums tracking-wide">
+              <span className="text-[10px] uppercase font-sans font-medium text-[#858585] tracking-wider">REMAINING</span>
+              <span className="text-[15px] font-mono font-semibold text-[#b20000] tabular-nums tracking-wide">
                 {formatRemaining(currentTime, duration)}
               </span>
             </div>
 
             {/* Dynamic BPM Indicator with Beat Flash */}
             <div className="flex flex-col items-end pl-2 border-l border-[#333333]">
-              <span className="text-[9px] uppercase font-sans font-bold text-[#888888] tracking-wider flex items-center gap-1">
+              <span className="text-[10px] uppercase font-sans font-medium text-[#858585] tracking-wider flex items-center gap-1">
                 <span className={`w-1.5 h-1.5 rounded-full transition-all duration-75 ${beatFlash ? 'bg-[#00BFFF] scale-150 shadow-[0_0_8px_#00BFFF]' : 'bg-[#333333]'}`} />
                 TEMPO
               </span>
               <span 
-                className="text-[14px] font-mono font-bold text-white tabular-nums tracking-wide cursor-pointer hover:text-[#00BFFF] transition-colors"
+                className="text-[15px] font-mono font-semibold text-[#F2F2F2] tabular-nums tracking-wide cursor-pointer hover:text-[#00BFFF] transition-colors"
                 title="Click to manually edit BPM"
                 onClick={() => setIsBpmEditing(true)}
               >
@@ -943,7 +943,7 @@ export function DJWaveformDeck({
 
             {/* Dynamic Musical Key & Camelot Wheel Indicator */}
             <div className="flex flex-col items-end pl-2 border-l border-[#333333]">
-              <span className="text-[9px] uppercase font-sans font-bold text-[#888888] tracking-wider flex items-center gap-1">
+              <span className="text-[10px] uppercase font-sans font-medium text-[#858585] tracking-wider flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#b20000]" />
                 KEY (CAMELOT)
               </span>
@@ -951,10 +951,10 @@ export function DJWaveformDeck({
                 className="flex items-center gap-1.5 mt-0.5 cursor-pointer hover:opacity-85 transition-opacity"
                 title={`Detected Key: ${musicalKey} • Camelot Code: ${camelotKey}`}
               >
-                <span className="text-[13px] font-mono font-bold text-white tracking-tight">
+                <span className="text-[14px] font-mono font-semibold text-[#F2F2F2] tracking-tight">
                   {musicalKey}
                 </span>
-                <span className="px-1.5 py-0.2 text-[9px] font-sans font-extrabold bg-[#b20000] text-white">
+                <span className="px-1.5 py-0.5 text-[10px] font-sans font-bold bg-[#b20000] text-[#F2F2F2]">
                   {camelotKey}
                 </span>
               </div>
@@ -1006,7 +1006,7 @@ export function DJWaveformDeck({
           <button
             type="button"
             onClick={() => setZoomLevel(prev => Math.min(12, prev + 0.5))}
-            className="w-6 h-6 flex items-center justify-center text-[#aaaaaa] hover:text-white hover:bg-[#252525] rounded transition-colors cursor-pointer"
+            className="w-6 h-6 flex items-center justify-center text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] rounded transition-colors cursor-pointer"
             title="Zoom In Waveform (+)"
             id="btn-zoom-in-wf"
           >
@@ -1017,7 +1017,7 @@ export function DJWaveformDeck({
           <button
             type="button"
             onClick={() => setZoomLevel(3.5)}
-            className="px-1.5 h-6 text-[9px] font-sans font-bold uppercase tracking-wider text-[#aaaaaa] hover:text-white hover:bg-[#252525] rounded transition-colors cursor-pointer flex items-center justify-center"
+            className="px-1.5 h-6 text-[10px] font-sans font-medium uppercase tracking-wider text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] rounded transition-colors cursor-pointer flex items-center justify-center"
             title="Reset Zoom to 3.5x"
             id="btn-zoom-rst-wf"
           >
@@ -1028,7 +1028,7 @@ export function DJWaveformDeck({
           <button
             type="button"
             onClick={() => setZoomLevel(prev => Math.max(1, prev - 0.5))}
-            className="w-6 h-6 flex items-center justify-center text-[#aaaaaa] hover:text-white hover:bg-[#252525] rounded transition-colors cursor-pointer"
+            className="w-6 h-6 flex items-center justify-center text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] rounded transition-colors cursor-pointer"
             title="Zoom Out Waveform (-)"
             id="btn-zoom-out-wf"
           >
@@ -1039,7 +1039,7 @@ export function DJWaveformDeck({
           <button
             type="button"
             onClick={() => handleNudgeGrid('left')}
-            className="w-6 h-6 flex items-center justify-center text-[#aaaaaa] hover:text-white hover:bg-[#252525] rounded transition-colors cursor-pointer border-l border-[#333333] pl-1 ml-0.5"
+            className="w-6 h-6 flex items-center justify-center text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] rounded transition-colors cursor-pointer border-l border-[#333333] pl-1 ml-0.5"
             title="Nudge Beatgrid Left"
             id="btn-nudge-left-wf"
           >
@@ -1048,16 +1048,16 @@ export function DJWaveformDeck({
         </div>
 
         {/* Legend Overlay at Top Right of Canvas */}
-        <div className="absolute right-3 top-3 flex items-center gap-3 bg-[#111111]/80 backdrop-blur-sm border border-[#333333] px-2 py-1 rounded text-[9px] font-sans font-bold uppercase tracking-wider text-[#aaaaaa] z-10 pointer-events-none">
-          <div className="flex items-center gap-1">
+        <div className="absolute right-3 top-3 flex items-center gap-3 bg-[#111111]/85 backdrop-blur-sm border border-[#333333] px-2.5 py-1 rounded text-[10px] font-sans font-medium uppercase tracking-wider text-[#B8B8B8] z-10 pointer-events-none">
+          <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-xs" style={{ backgroundColor: colors.low }} />
             <span>LOW / BASS</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-xs" style={{ backgroundColor: colors.mid }} />
             <span>MID / VOCAL</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-xs" style={{ backgroundColor: colors.high }} />
             <span>HIGH / AIR</span>
           </div>
@@ -1076,10 +1076,10 @@ export function DJWaveformDeck({
             <button
               type="button"
               onClick={() => setActiveTab('MONITOR')}
-              className={`px-3 py-1 text-[10px] font-bold uppercase tracking-[1px] cursor-pointer transition-colors ${
+              className={`px-3 py-1 text-[11px] font-medium uppercase tracking-[0.8px] cursor-pointer transition-colors ${
                 activeTab === 'MONITOR' 
-                  ? 'bg-[#2a2a2a] text-white' 
-                  : 'text-[#888888] hover:text-[#cccccc]'
+                  ? 'bg-[#2a2a2a] text-[#F2F2F2]' 
+                  : 'text-[#B8B8B8] hover:text-[#F2F2F2]'
               }`}
               id="tab-btn-monitor"
             >
@@ -1088,10 +1088,10 @@ export function DJWaveformDeck({
             <button
               type="button"
               onClick={() => setActiveTab('GRID_ANALYSIS')}
-              className={`px-3 py-1 text-[10px] font-bold uppercase tracking-[1px] cursor-pointer transition-colors ${
+              className={`px-3 py-1 text-[11px] font-medium uppercase tracking-[0.8px] cursor-pointer transition-colors ${
                 activeTab === 'GRID_ANALYSIS' 
-                  ? 'bg-[#2a2a2a] text-white' 
-                  : 'text-[#888888] hover:text-[#cccccc]'
+                  ? 'bg-[#2a2a2a] text-[#F2F2F2]' 
+                  : 'text-[#B8B8B8] hover:text-[#F2F2F2]'
               }`}
               id="tab-btn-gridedit"
             >
@@ -1105,7 +1105,7 @@ export function DJWaveformDeck({
               type="button"
               onClick={handleSetDownbeat}
               disabled={isGridLocked}
-              className="px-2 h-7 bg-[#141414] border border-[#3a3a3a] hover:border-[#b20000] text-[10px] font-bold uppercase tracking-wider text-[#cccccc] flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-2.5 h-7 bg-[#141414] border border-[#3a3a3a] hover:border-[#b20000] text-[11px] font-medium uppercase tracking-wider text-[#F2F2F2] flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               title="Set Beat 1 Downbeat at current playhead position"
               id="btn-set-downbeat"
             >
@@ -1130,13 +1130,13 @@ export function DJWaveformDeck({
                     setIsBpmEditing(false);
                   }}
                   autoFocus
-                  className="w-16 h-7 bg-[#121212] border border-[#00BFFF] px-1 text-center font-mono font-bold text-white text-[11px] focus:outline-none"
+                  className="w-16 h-7 bg-[#121212] border border-[#00BFFF] px-1 text-center font-mono font-medium text-[#F2F2F2] text-[11px] focus:outline-none"
                 />
               </form>
             ) : (
               <div 
                 onClick={() => !isGridLocked && setIsBpmEditing(true)}
-                className={`h-7 px-2 bg-[#141414] border border-[#3a3a3a] flex items-center justify-center font-mono font-bold text-white text-[11px] cursor-pointer hover:border-[#666666] select-none ${
+                className={`h-7 px-2.5 bg-[#141414] border border-[#3a3a3a] flex items-center justify-center font-mono font-medium text-[#F2F2F2] text-[11px] cursor-pointer hover:border-[#666666] select-none ${
                   isGridLocked ? 'cursor-default' : 'hover:border-[#00BFFF]'
                 }`}
                 title="Click to edit grid tempo manually"
@@ -1150,10 +1150,10 @@ export function DJWaveformDeck({
               type="button"
               onClick={handleTapTempo}
               disabled={isGridLocked}
-              className={`h-7 px-2.5 text-[10px] font-bold uppercase tracking-[1px] border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+              className={`h-7 px-2.5 text-[11px] font-medium uppercase tracking-[0.8px] border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                 isTapActive 
-                  ? 'bg-[#00BFFF] border-[#00BFFF] text-black' 
-                  : 'bg-[#141414] border-[#3a3a3a] text-[#888888] hover:text-white hover:border-[#666666]'
+                  ? 'bg-[#00BFFF] border-[#00BFFF] text-black font-semibold' 
+                  : 'bg-[#141414] border-[#3a3a3a] text-[#B8B8B8] hover:text-[#F2F2F2] hover:border-[#666666]'
               }`}
               title="Tap repeatedly on rhythm to measure BPM"
               id="btn-tap-tempo"
@@ -1167,7 +1167,7 @@ export function DJWaveformDeck({
                 type="button"
                 onClick={() => handleNudgeGrid('left')}
                 disabled={isGridLocked}
-                className="px-2 h-full text-[#888888] hover:text-white border-r border-[#3a3a3a] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-mono text-[10px]"
+                className="px-2 h-full text-[#B8B8B8] hover:text-[#F2F2F2] border-r border-[#3a3a3a] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-mono text-[11px]"
                 title="Nudge beat grid phase left"
                 id="btn-nudge-grid-left"
               >
@@ -1177,7 +1177,7 @@ export function DJWaveformDeck({
                 type="button"
                 onClick={() => handleNudgeGrid('right')}
                 disabled={isGridLocked}
-                className="px-2 h-full text-[#888888] hover:text-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-mono text-[10px]"
+                className="px-2 h-full text-[#B8B8B8] hover:text-[#F2F2F2] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-mono text-[11px]"
                 title="Nudge beat grid phase right"
                 id="btn-nudge-grid-right"
               >
@@ -1191,7 +1191,7 @@ export function DJWaveformDeck({
                 type="button"
                 onClick={() => handleStretchGrid('compress')}
                 disabled={isGridLocked}
-                className="px-2 h-full text-[#888888] hover:text-white border-r border-[#3a3a3a] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-mono text-[10px]"
+                className="px-2 h-full text-[#B8B8B8] hover:text-[#F2F2F2] border-r border-[#3a3a3a] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-mono text-[11px]"
                 title="Compress beat spacing (Fine BPM +)"
                 id="btn-compress-grid"
               >
@@ -1201,7 +1201,7 @@ export function DJWaveformDeck({
                 type="button"
                 onClick={() => handleStretchGrid('expand')}
                 disabled={isGridLocked}
-                className="px-2 h-full text-[#888888] hover:text-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-mono text-[10px]"
+                className="px-2 h-full text-[#B8B8B8] hover:text-[#F2F2F2] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-mono text-[11px]"
                 title="Expand beat spacing (Fine BPM -)"
                 id="btn-expand-grid"
               >
@@ -1217,10 +1217,10 @@ export function DJWaveformDeck({
           <button
             type="button"
             onClick={() => setIsFrozen(prev => !prev)}
-            className={`h-7 px-2.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[1px] border transition-colors cursor-pointer ${
+            className={`h-7 px-2.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.8px] border transition-colors cursor-pointer ${
               isFrozen
-                ? 'bg-[#b20000] border-[#b20000] text-white shadow-[0_0_8px_#b20000]'
-                : 'bg-[#141414] border-[#3a3a3a] text-[#cccccc] hover:text-white hover:border-[#666666]'
+                ? 'bg-[#b20000] border-[#b20000] text-[#F2F2F2] shadow-[0_0_8px_#b20000]'
+                : 'bg-[#141414] border-[#3a3a3a] text-[#B8B8B8] hover:text-[#F2F2F2] hover:border-[#666666]'
             }`}
             title="Freeze and inspect current audio waveform transients"
             id="btn-freeze-waveform"
@@ -1233,7 +1233,7 @@ export function DJWaveformDeck({
           <button
             type="button"
             onClick={handleResetBuffer}
-            className="h-7 px-2.5 bg-[#141414] border border-[#3a3a3a] text-[10px] font-bold uppercase tracking-[1px] text-[#888888] hover:text-white hover:border-[#666666] flex items-center gap-1 transition-colors cursor-pointer"
+            className="h-7 px-2.5 bg-[#141414] border border-[#3a3a3a] text-[11px] font-medium uppercase tracking-[0.8px] text-[#B8B8B8] hover:text-[#F2F2F2] hover:border-[#666666] flex items-center gap-1 transition-colors cursor-pointer"
             title="Clear and reset live waveform history buffer"
             id="btn-reset-waveform-buffer"
           >
@@ -1245,9 +1245,9 @@ export function DJWaveformDeck({
           <button
             type="button"
             onClick={() => setIsGridLocked(!isGridLocked)}
-            className={`h-7 px-2.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[1px] border transition-colors cursor-pointer ${
+            className={`h-7 px-2.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.8px] border transition-colors cursor-pointer ${
               isGridLocked 
-                ? 'bg-[#1a1a1a] border-[#3a3a3a] text-[#888888]' 
+                ? 'bg-[#1a1a1a] border-[#3a3a3a] text-[#858585]' 
                 : 'bg-[#00BFFF]/20 border-[#00BFFF] text-[#00BFFF]'
             }`}
             title={isGridLocked ? "Beatgrid is locked against accidental shifts" : "Beatgrid unlocked for editing"}

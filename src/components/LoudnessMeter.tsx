@@ -648,7 +648,7 @@ export function LoudnessMeter({
             <div className="p-1.5 bg-[#181818] border border-[#4a4a4a] text-[#b20000] flex items-center justify-center">
               <Cpu className="w-4 h-4" />
             </div>
-            <h2 className="text-xs font-bold tracking-[1.4px] text-white uppercase font-sans">
+            <h2 className="text-xs font-semibold tracking-[1.4px] text-[#F2F2F2] uppercase font-sans">
               Loudness & Peak Analyzer
             </h2>
           </div>
@@ -687,15 +687,15 @@ export function LoudnessMeter({
         {/* L/R True Peak meters (dbFS) - columns 1-4 */}
         <div className="md:col-span-4 flex flex-col justify-between space-y-3" id="peak-meters-block">
           <div className="flex flex-col items-center justify-center bg-[#121212] p-2 border border-[#4a4a4a] gap-1.5">
-            <span ref={maxPeakTextRef} className="text-[11px] font-sans font-bold uppercase tracking-[1px] text-white" id="peak-dbfs-max-text">
+            <span ref={maxPeakTextRef} className="text-[12px] font-sans font-semibold uppercase tracking-[1px] text-[#F2F2F2]" id="peak-dbfs-max-text">
               Peak dBFS Max: -120.0
             </span>
             <div 
               ref={clipIndicatorRef}
-              className="flex items-center gap-1.5 text-[10px] font-sans font-bold px-2.5 py-0.5 border tracking-[1px] transition-colors bg-[#181818] text-[#cccccc] border-[#4a4a4a]"
+              className="flex items-center gap-1.5 text-[11px] font-sans font-medium px-2.5 py-0.5 border tracking-[1px] transition-colors bg-[#181818] text-[#B8B8B8] border-[#4a4a4a]"
               style={{ height: '22px' }}
             >
-              <div ref={clipDotRef} className="w-1.5 h-1.5 transition-colors shrink-0 bg-[#aaaaaa]" />
+              <div ref={clipDotRef} className="w-1.5 h-1.5 transition-colors shrink-0 bg-[#858585]" />
               <span>CLIP</span>
             </div>
           </div>
@@ -704,9 +704,9 @@ export function LoudnessMeter({
           <div className="space-y-3.5 pt-1.5">
             {/* Left Channel */}
             <div className="space-y-1">
-              <div className="flex justify-between items-center text-[10px] font-sans text-[#cccccc] uppercase tracking-[1px] font-bold">
+              <div className="flex justify-between items-center text-[11px] font-sans text-[#B8B8B8] uppercase tracking-[1px] font-medium">
                 <span>CH 1 (Left Peak)</span>
-                <span ref={peakLeftTextRef} className="text-white font-sans font-bold tabular-nums w-20 text-right text-[11px]">
+                <span ref={peakLeftTextRef} className="text-[#F2F2F2] font-mono font-semibold tabular-nums w-20 text-right text-sm">
                   -120.0 dB
                 </span>
               </div>
@@ -723,9 +723,9 @@ export function LoudnessMeter({
 
             {/* Right Channel */}
             <div className="space-y-1">
-              <div className="flex justify-between items-center text-[10px] font-sans text-[#cccccc] uppercase tracking-[1px] font-bold">
+              <div className="flex justify-between items-center text-[11px] font-sans text-[#B8B8B8] uppercase tracking-[1px] font-medium">
                 <span>CH 2 (Right Peak)</span>
-                <span ref={peakRightTextRef} className="text-white font-sans font-bold tabular-nums w-20 text-right text-[11px]">
+                <span ref={peakRightTextRef} className="text-[#F2F2F2] font-mono font-semibold tabular-nums w-20 text-right text-sm">
                   -120.0 dB
                 </span>
               </div>
@@ -742,13 +742,13 @@ export function LoudnessMeter({
           </div>
 
           {/* Indicator clips mapped perfectly to match scale percentages */}
-          <div className="relative w-full h-[18px] text-[10px] font-sans text-[#aaaaaa] mt-1 pt-1 font-bold">
-            <span className="absolute left-0 select-none text-[#aaaaaa] font-bold">-60 dB</span>
-            <span className="absolute select-none text-[#aaaaaa] font-bold" style={{ left: '47.62%', transform: 'translateX(-50%)' }}>-30</span>
-            <span className="absolute select-none text-[#aaaaaa] font-bold" style={{ left: '76.19%', transform: 'translateX(-50%)' }}>-12</span>
-            <span className="absolute select-none text-[#aaaaaa] font-bold" style={{ left: '85.71%', transform: 'translateX(-50%)' }}>-6</span>
-            <span className="absolute text-[#b20000] font-bold select-none" style={{ left: '95.24%', transform: 'translateX(-50%)' }}>0</span>
-            <span className="absolute right-0 select-none text-[#aaaaaa] font-bold">+3</span>
+          <div className="relative w-full h-[18px] text-[10px] font-sans text-[#B8B8B8] mt-1 pt-1 font-medium">
+            <span className="absolute left-0 select-none text-[#B8B8B8] font-medium">-60 dB</span>
+            <span className="absolute select-none text-[#B8B8B8] font-medium" style={{ left: '47.62%', transform: 'translateX(-50%)' }}>-30</span>
+            <span className="absolute select-none text-[#B8B8B8] font-medium" style={{ left: '76.19%', transform: 'translateX(-50%)' }}>-12</span>
+            <span className="absolute select-none text-[#B8B8B8] font-medium" style={{ left: '85.71%', transform: 'translateX(-50%)' }}>-6</span>
+            <span className="absolute text-[#FF3333] font-semibold select-none" style={{ left: '95.24%', transform: 'translateX(-50%)' }}>0</span>
+            <span className="absolute right-0 select-none text-[#B8B8B8] font-medium">+3</span>
           </div>
         </div>
 
@@ -757,14 +757,14 @@ export function LoudnessMeter({
           
           {/* LUFS labels metrics */}
           <div className="flex justify-between items-center bg-[#121212] p-1.5 px-2.5 gap-2">
-            <span className="text-[11px] font-sans font-bold text-white uppercase tracking-[1px]">K-Weighted LUFS Loudness</span>
+            <span className="text-[12px] font-sans font-semibold text-[#F2F2F2] uppercase tracking-[1px]">K-Weighted LUFS Loudness</span>
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-[10px] text-[#aaaaaa] uppercase font-sans font-bold block shrink-0 tracking-[1px]">Target:</span>
+              <span className="text-[11px] text-[#B8B8B8] uppercase font-sans font-medium block shrink-0 tracking-[1px]">Target:</span>
               <select
                 id="meter-select-lufs"
                 value={targetLoudness}
                 onChange={(e) => setTargetLoudness(parseFloat(e.target.value))}
-                className="h-[28px] bg-[#181818] text-[11px] text-white font-bold border border-[#4a4a4a] hover:border-white px-2 py-0.5 font-sans cursor-pointer transition-colors uppercase tracking-[0.5px]"
+                className="h-[28px] bg-[#181818] text-[11px] text-[#F2F2F2] font-medium border border-[#4a4a4a] hover:border-white px-2 py-0.5 font-sans cursor-pointer transition-colors uppercase tracking-[0.5px]"
                 style={{ width: '190px' }}
               >
                 {![
@@ -826,7 +826,7 @@ export function LoudnessMeter({
             
             {/* 1. Momentary Loudness */}
             <div className="flex items-center gap-3 w-full">
-              <span className="w-24 shrink-0 text-[10px] font-sans font-bold text-[#cccccc] uppercase tracking-[1px] select-none" title="400ms energy level">Momentary</span>
+              <span className="w-24 shrink-0 text-[11px] font-sans font-medium text-[#B8B8B8] uppercase tracking-[1px] select-none" title="400ms energy level">Momentary</span>
               <div className="flex-1 min-w-0 h-2.5 bg-[#121212] border border-[#4a4a4a] relative overflow-hidden">
                 {/* Target overlay line */}
                 <div 
@@ -840,14 +840,14 @@ export function LoudnessMeter({
                   style={{ width: '0%' }}
                 />
               </div>
-              <span ref={momentaryTextRef} className="w-24 shrink-0 text-[11px] font-sans font-bold tabular-nums text-right text-white">
+              <span ref={momentaryTextRef} className="w-24 shrink-0 text-sm font-mono font-semibold tabular-nums text-right text-[#F2F2F2]">
                 -120.0 LUFS
               </span>
             </div>
 
             {/* 2. Short-Term Loudness */}
             <div className="flex items-center gap-3 w-full">
-              <span className="w-24 shrink-0 text-[10px] font-sans font-bold text-[#cccccc] uppercase tracking-[1px] select-none" title="3-second sliding window average">Short-term</span>
+              <span className="w-24 shrink-0 text-[11px] font-sans font-medium text-[#B8B8B8] uppercase tracking-[1px] select-none" title="3-second sliding window average">Short-term</span>
               <div className="flex-1 min-w-0 h-2.5 bg-[#121212] border border-[#4a4a4a] relative overflow-hidden">
                 <div 
                   className="absolute top-0 bottom-0 w-0.5 bg-white z-10" 
@@ -859,14 +859,14 @@ export function LoudnessMeter({
                   style={{ width: '0%' }}
                 />
               </div>
-              <span ref={shortTermTextRef} className="w-24 shrink-0 text-[11px] font-sans font-bold tabular-nums text-right text-white">
+              <span ref={shortTermTextRef} className="w-24 shrink-0 text-sm font-mono font-semibold tabular-nums text-right text-[#F2F2F2]">
                 -120.0 LUFS
               </span>
             </div>
 
             {/* 3. Integrated Loudness */}
             <div className="flex items-center gap-3 w-full">
-              <span className="w-24 shrink-0 text-[10px] font-sans font-bold text-[#cccccc] uppercase tracking-[1px] select-none" title="Dual-gated continuous average loudness">Integrated</span>
+              <span className="w-24 shrink-0 text-[11px] font-sans font-medium text-[#B8B8B8] uppercase tracking-[1px] select-none" title="Dual-gated continuous average loudness">Integrated</span>
               <div className="flex-1 min-w-0 h-3.5 bg-[#121212] relative overflow-hidden border border-[#4a4a4a]">
                 <div 
                   className="absolute top-0 bottom-0 w-0.5 bg-white z-10" 
@@ -878,7 +878,7 @@ export function LoudnessMeter({
                   style={{ width: '0%' }}
                 />
               </div>
-              <span ref={integratedTextRef} className="w-24 shrink-0 text-[12px] font-sans tabular-nums font-bold text-right text-white">
+              <span ref={integratedTextRef} className="w-24 shrink-0 text-sm font-mono font-semibold tabular-nums text-right text-[#F2F2F2]">
                 -120.0 LUFS
               </span>
             </div>
@@ -886,17 +886,17 @@ export function LoudnessMeter({
           </div>
 
           {/* Scale row aligned precisely to match bar levels horizontally */}
-          <div className="flex items-center gap-3 w-full text-[10px] font-sans font-bold text-[#aaaaaa] mt-2 pt-1.5" id="lufs-scale-row">
+          <div className="flex items-center gap-3 w-full text-[10px] font-sans font-medium text-[#B8B8B8] mt-2 pt-1.5" id="lufs-scale-row">
             <div className="w-24 shrink-0" />
             <div className="flex-1 min-w-0 relative h-[16px]">
-              <span className="absolute left-0 select-none text-[10px] text-[#aaaaaa] font-bold">-60 LUFS</span>
-              <span className="absolute select-none text-[10px] text-[#aaaaaa] font-bold" style={{ left: '20%', transform: 'translateX(-50%)' }}>-48</span>
-              <span className="absolute select-none text-[10px] text-[#aaaaaa] font-bold" style={{ left: '40%', transform: 'translateX(-50%)' }}>-36</span>
-              <span className="absolute select-none text-[10px] text-[#aaaaaa] font-bold" style={{ left: '70%', transform: 'translateX(-50%)' }}>-18</span>
-              <span className="absolute text-[#b20000] font-bold font-sans text-[11px] select-none" style={{ left: `${lufsToPercent(targetLoudness)}%`, transform: 'translateX(-50%)' }}>
+              <span className="absolute left-0 select-none text-[10px] text-[#B8B8B8] font-medium">-60 LUFS</span>
+              <span className="absolute select-none text-[10px] text-[#B8B8B8] font-medium" style={{ left: '20%', transform: 'translateX(-50%)' }}>-48</span>
+              <span className="absolute select-none text-[10px] text-[#B8B8B8] font-medium" style={{ left: '40%', transform: 'translateX(-50%)' }}>-36</span>
+              <span className="absolute select-none text-[10px] text-[#B8B8B8] font-medium" style={{ left: '70%', transform: 'translateX(-50%)' }}>-18</span>
+              <span className="absolute text-[#FF3333] font-semibold font-sans text-[11px] select-none" style={{ left: `${lufsToPercent(targetLoudness)}%`, transform: 'translateX(-50%)' }}>
                 {targetLoudness}
               </span>
-              <span className="absolute right-0 select-none text-[10px] text-[#aaaaaa] font-bold">0</span>
+              <span className="absolute right-0 select-none text-[10px] text-[#B8B8B8] font-medium">0</span>
             </div>
             <div className="w-24 shrink-0" />
           </div>
@@ -948,29 +948,29 @@ export function LoudnessMeter({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch" id="compliance-block">
         
         {/* Compliance box (Left 4 cols) */}
-        <div ref={complianceBadgeRef} className="lg:col-span-4 p-3.5 border flex flex-col justify-between bg-[#181818] border-[#4a4a4a] text-[#aaaaaa] transition-colors duration-150" id="compliance-badge-card">
+        <div ref={complianceBadgeRef} className="lg:col-span-4 p-3.5 border flex flex-col justify-between bg-[#181818] border-[#4a4a4a] text-[#B8B8B8] transition-colors duration-150" id="compliance-badge-card">
           <div className="flex items-start gap-2.5">
             <div ref={matchedIconRef} style={{ display: 'none' }} className="flex-shrink-0"><CheckCircle className="w-5 h-5 text-emerald-400" /></div>
             <div ref={hotIconRef} style={{ display: 'none' }} className="flex-shrink-0"><ArrowUp className="w-5 h-5 text-[#ff4444]" /></div>
             <div ref={warmIconRef} style={{ display: 'none' }} className="flex-shrink-0"><ArrowUp className="w-5 h-5 text-amber-400" /></div>
             <div ref={coolIconRef} style={{ display: 'none' }} className="flex-shrink-0"><ArrowDown className="w-5 h-5 text-cyan-400" /></div>
             <div ref={coldIconRef} style={{ display: 'none' }} className="flex-shrink-0"><ArrowDown className="w-5 h-5 text-blue-400" /></div>
-            <div ref={idleIconRef} style={{ display: 'block' }} className="flex-shrink-0"><Info className="w-5 h-5 text-[#aaaaaa]" /></div>
+            <div ref={idleIconRef} style={{ display: 'block' }} className="flex-shrink-0"><Info className="w-5 h-5 text-[#858585]" /></div>
 
             <div className="space-y-0.5 animate-fade-in-quick">
-              <h3 ref={complianceStatusHeaderRef} className="text-xs font-bold font-sans uppercase tracking-[1.4px] text-white">
+              <h3 ref={complianceStatusHeaderRef} className="text-xs font-semibold font-sans uppercase tracking-[1.4px] text-[#F2F2F2]">
                 Waiting to integrate
               </h3>
-              <p ref={complianceStatusDescRef} className="text-[11px] text-[#aaaaaa] leading-normal font-sans">
+              <p ref={complianceStatusDescRef} className="text-[11px] text-[#B8B8B8] leading-normal font-sans">
                 Play an audio track or start synth generator loops to capture loudness margins.
               </p>
             </div>
           </div>
 
           {/* Delta math tag */}
-          <div ref={complianceOffsetRowRef} style={{ display: 'none' }} className="mt-2 text-[10px] font-sans font-bold flex items-center justify-between border-t border-[#4a4a4a] pt-1.5 uppercase tracking-[1px]">
-            <span className="text-white">Mismatch Offset:</span>
-            <span ref={complianceOffsetValRef} className="text-[12px] text-white font-sans font-bold">
+          <div ref={complianceOffsetRowRef} style={{ display: 'none' }} className="mt-2 text-[11px] font-sans font-medium flex items-center justify-between border-t border-[#4a4a4a] pt-1.5 uppercase tracking-[1px]">
+            <span className="text-[#B8B8B8]">Mismatch Offset:</span>
+            <span ref={complianceOffsetValRef} className="text-[13px] text-[#F2F2F2] font-mono font-semibold">
               0.0 LU
             </span>
           </div>
@@ -986,12 +986,12 @@ export function LoudnessMeter({
             title="Loudness Range (LRA): Quantified macro dynamic range spread of files."
             className="flex items-center justify-between bg-[#181818] p-2.5 px-3.5 border border-[#4a4a4a] cursor-default hover:border-white transition-colors"
           >
-            <h4 className="text-[10px] font-sans font-bold tracking-[1.2px] text-[#cccccc] uppercase">Loudness Range (LRA)</h4>
+            <h4 className="text-[11px] font-sans font-medium tracking-[1.2px] text-[#B8B8B8] uppercase">Loudness Range (LRA)</h4>
             <div className="flex items-baseline gap-1 font-sans">
-              <span ref={lraTextRef} className="text-[15px] font-bold text-white font-sans">
+              <span ref={lraTextRef} className="text-[17px] font-semibold text-[#F2F2F2] font-mono">
                 0.0
               </span>
-              <span className="text-[11px] text-[#aaaaaa] font-bold uppercase">LU</span>
+              <span className="text-[11px] text-[#858585] font-medium uppercase">LU</span>
             </div>
           </div>
 
@@ -999,12 +999,12 @@ export function LoudnessMeter({
             title="Crest Factor: Peak-to-RMS power density. Higher is more dynamic."
             className="flex items-center justify-between bg-[#181818] p-2.5 px-3.5 border border-[#4a4a4a] cursor-default hover:border-white transition-colors"
           >
-            <h4 className="text-[10px] font-sans font-bold tracking-[1.2px] text-[#cccccc] uppercase">Crest Factor</h4>
+            <h4 className="text-[11px] font-sans font-medium tracking-[1.2px] text-[#B8B8B8] uppercase">Crest Factor</h4>
             <div className="flex items-baseline gap-1 font-sans">
-              <span ref={crestFactorTextRef} className="text-[15px] font-bold text-white font-sans">
+              <span ref={crestFactorTextRef} className="text-[17px] font-semibold text-[#F2F2F2] font-mono">
                 0.0
               </span>
-              <span className="text-[11px] text-[#aaaaaa] font-bold uppercase">dB</span>
+              <span className="text-[11px] text-[#858585] font-medium uppercase">dB</span>
             </div>
           </div>
 
@@ -1012,9 +1012,9 @@ export function LoudnessMeter({
             title="Max Momentary: Shortest peak transient loudness caught over a 400ms sliding window."
             className="flex items-center justify-between bg-[#181818] p-2.5 px-3.5 border border-[#4a4a4a] cursor-default hover:border-white transition-colors"
           >
-            <h4 className="text-[10px] font-sans font-bold tracking-[1.2px] text-[#cccccc] uppercase">Max Momentary</h4>
+            <h4 className="text-[11px] font-sans font-medium tracking-[1.2px] text-[#B8B8B8] uppercase">Max Momentary</h4>
             <div className="flex items-baseline gap-1 font-sans">
-              <span ref={maxMomentaryTextRef} className="text-[15px] font-bold text-white font-sans">
+              <span ref={maxMomentaryTextRef} className="text-[17px] font-semibold text-[#F2F2F2] font-mono">
                 -120.0 LUFS
               </span>
             </div>
@@ -1024,9 +1024,9 @@ export function LoudnessMeter({
             title="Max Short-term: Highest block window energy computed over 3-second segments."
             className="flex items-center justify-between bg-[#181818] p-2.5 px-3.5 border border-[#4a4a4a] cursor-default hover:border-white transition-colors"
           >
-            <h4 className="text-[10px] font-sans font-bold tracking-[1.2px] text-[#cccccc] uppercase">Max Short-term</h4>
+            <h4 className="text-[11px] font-sans font-medium tracking-[1.2px] text-[#B8B8B8] uppercase">Max Short-term</h4>
             <div className="flex items-baseline gap-1 font-sans">
-              <span ref={maxShortTermTextRef} className="text-[15px] font-bold text-white font-sans">
+              <span ref={maxShortTermTextRef} className="text-[17px] font-semibold text-[#F2F2F2] font-mono">
                 -120.0 LUFS
               </span>
             </div>

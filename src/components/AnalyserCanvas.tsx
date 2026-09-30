@@ -223,7 +223,7 @@ const WaveformOscilloscopeDeckHeader: React.FC<WaveformOscilloscopeDeckHeaderPro
           <div className="p-1.5 bg-[#181818] border border-[#4a4a4a] flex items-center justify-center text-[#b20000]">
             <Waves className="w-4 h-4 text-[#b20000]" />
           </div>
-          <h2 className="text-xs font-bold tracking-[1.4px] text-white font-sans uppercase">
+          <h2 className="text-xs font-semibold tracking-[1.4px] text-[#F2F2F2] font-sans uppercase">
             Waveform / Oscilloscope Deck
           </h2>
         </div>
@@ -234,12 +234,12 @@ const WaveformOscilloscopeDeckHeader: React.FC<WaveformOscilloscopeDeckHeaderPro
           title="Select visualizer display mode"
           id="select-deck2-mode-container"
         >
-          <span className="text-[#aaaaaa] pl-1 text-[10px] font-sans font-bold uppercase tracking-[1px]">Mode:</span>
+          <span className="text-[#B8B8B8] pl-1 text-[11px] font-sans font-medium uppercase tracking-[1px]">Mode:</span>
           <select
             id="select-deck2-mode-dropdown"
             value={secondaryMode}
             onChange={(e) => setSecondaryMode(e.target.value as 'split' | 'waveform' | 'oscilloscope')}
-            className="bg-transparent border-0 text-white focus:outline-none cursor-pointer font-sans text-[10px] font-bold uppercase tracking-[1px] pr-1"
+            className="bg-transparent border-0 text-[#F2F2F2] focus:outline-none cursor-pointer font-sans text-[11px] font-medium uppercase tracking-[1px] pr-1"
           >
             <option value="waveform" className="bg-[#181818]">Waveform</option>
             <option value="split" className="bg-[#181818]">Split</option>
@@ -252,10 +252,10 @@ const WaveformOscilloscopeDeckHeader: React.FC<WaveformOscilloscopeDeckHeaderPro
           type="button"
           id="btn-deck2-freeze-toggle"
           onClick={onToggleFreeze}
-          className={`px-2.5 py-1 text-[10px] font-sans font-bold uppercase tracking-[1px] border transition-colors cursor-pointer h-7 flex items-center justify-center gap-1.5 select-none ${
+          className={`px-2.5 py-1 text-[11px] font-sans font-medium uppercase tracking-[1px] border transition-colors cursor-pointer h-7 flex items-center justify-center gap-1.5 select-none ${
             isDeckFrozen
               ? 'bg-[#b20000] border-[#b20000] text-white'
-              : 'bg-[#181818] border-[#4a4a4a] text-[#cccccc] hover:bg-white hover:text-[#111111]'
+              : 'bg-[#181818] border-[#4a4a4a] text-[#B8B8B8] hover:bg-white hover:text-[#111111]'
           }`}
           title={isDeckFrozen ? 'Click to unfreeze and resume real-time audio visualization' : 'Halt canvas animation frame updates to inspect specific audio transients in detail'}
         >
@@ -269,7 +269,7 @@ const WaveformOscilloscopeDeckHeader: React.FC<WaveformOscilloscopeDeckHeaderPro
           title="Adjust oscilloscope horizontal timebase scale (zoom in/out: 0.25x to 4.00x)"
           id="control-deck2-timebase"
         >
-          <span className="text-[#aaaaaa] text-[10px] uppercase font-sans font-bold tracking-[1px]">Timebase:</span>
+          <span className="text-[#B8B8B8] text-[11px] uppercase font-sans font-medium tracking-[1px]">Timebase:</span>
           <input
             id="slider-deck2-timebase"
             type="range"
@@ -280,14 +280,14 @@ const WaveformOscilloscopeDeckHeader: React.FC<WaveformOscilloscopeDeckHeaderPro
             onChange={(e) => setOscTimebase(parseFloat(e.target.value))}
             className="w-14 accent-[#b20000] h-1 bg-[#121212] cursor-pointer"
           />
-          <span className="text-white font-sans text-[10px] w-8 text-right font-bold shrink-0">
+          <span className="text-[#F2F2F2] font-sans text-[11px] w-8 text-right font-semibold shrink-0">
             {oscTimebase.toFixed(2)}x
           </span>
           {oscTimebase !== 1.0 && (
             <button
               type="button"
               onClick={() => setOscTimebase(1.0)}
-              className="text-[9px] font-sans font-bold text-[#aaaaaa] hover:text-white cursor-pointer ml-0.5 uppercase"
+              className="text-[10px] font-sans font-semibold text-[#858585] hover:text-white cursor-pointer ml-0.5 uppercase"
               title="Reset timebase to 1.00x"
             >
               1x
@@ -301,7 +301,7 @@ const WaveformOscilloscopeDeckHeader: React.FC<WaveformOscilloscopeDeckHeaderPro
           title="Adjust oscilloscope trigger threshold (-90% to +90%) to lock and stabilize waveform"
           id="control-deck2-trigger-threshold"
         >
-          <span className="text-[#aaaaaa] text-[10px] uppercase font-sans font-bold tracking-[1px]">Trigger:</span>
+          <span className="text-[#B8B8B8] text-[11px] uppercase font-sans font-medium tracking-[1px]">Trigger:</span>
           <input
             id="slider-deck2-trigger-threshold"
             type="range"
@@ -312,14 +312,14 @@ const WaveformOscilloscopeDeckHeader: React.FC<WaveformOscilloscopeDeckHeaderPro
             onChange={(e) => setOscTriggerThreshold(parseInt(e.target.value))}
             className="w-14 accent-[#b20000] h-1 bg-[#121212] cursor-pointer"
           />
-          <span className="text-white font-sans text-[11px] w-8 text-right font-bold shrink-0">
+          <span className="text-[#F2F2F2] font-sans text-[11px] w-8 text-right font-semibold shrink-0">
             {oscTriggerThreshold > 0 ? '+' : ''}{oscTriggerThreshold}%
           </span>
           {oscTriggerThreshold !== 0 && (
             <button
               type="button"
               onClick={() => setOscTriggerThreshold(0)}
-              className="text-[9px] font-sans font-bold text-[#aaaaaa] hover:text-white cursor-pointer ml-0.5 uppercase"
+              className="text-[10px] font-sans font-semibold text-[#858585] hover:text-white cursor-pointer ml-0.5 uppercase"
               title="Reset trigger threshold to zero crossing (0%)"
             >
               0
@@ -336,7 +336,7 @@ const WaveformOscilloscopeDeckHeader: React.FC<WaveformOscilloscopeDeckHeaderPro
           title="Adjust the vertical height of the deck (80px to 300px)"
           id="header-secondary-height-control"
         >
-          <span className="text-[#aaaaaa] text-[10px] uppercase font-sans font-bold tracking-[1px]">Height:</span>
+          <span className="text-[#B8B8B8] text-[11px] uppercase font-sans font-medium tracking-[1px]">Height:</span>
           <input
             id="slider-header-split-height"
             type="range"
@@ -347,7 +347,7 @@ const WaveformOscilloscopeDeckHeader: React.FC<WaveformOscilloscopeDeckHeaderPro
             onChange={(e) => setSecondaryHeight(parseInt(e.target.value))}
             className="w-14 accent-[#b20000] h-1 bg-[#121212] cursor-pointer"
           />
-          <span className="text-[#cccccc] font-sans text-[10px] w-8 text-right font-bold shrink-0">{secondaryHeight}px</span>
+          <span className="text-[#F2F2F2] font-sans text-[11px] w-8 text-right font-semibold shrink-0">{secondaryHeight}px</span>
         </div>
 
         {/* Grid Toggle Button */}
@@ -355,10 +355,10 @@ const WaveformOscilloscopeDeckHeader: React.FC<WaveformOscilloscopeDeckHeaderPro
           type="button"
           id="btn-deck2-grid-toggle"
           onClick={() => setDeck2ShowGrid(!deck2ShowGrid)}
-          className={`px-2.5 py-1 text-[10px] font-sans font-bold uppercase tracking-[1px] border transition-colors cursor-pointer h-7 flex items-center justify-center select-none ${
+          className={`px-2.5 py-1 text-[11px] font-sans font-medium uppercase tracking-[1px] border transition-colors cursor-pointer h-7 flex items-center justify-center select-none ${
             deck2ShowGrid
               ? 'bg-[#b20000] border-[#b20000] text-white'
-              : 'bg-[#181818] border-[#4a4a4a] text-[#cccccc] hover:bg-white hover:text-[#111111]'
+              : 'bg-[#181818] border-[#4a4a4a] text-[#B8B8B8] hover:bg-white hover:text-[#111111]'
           }`}
           title="Toggle measurement grid lines"
         >
@@ -801,8 +801,8 @@ export function AnalyserCanvas({
     const scaleX = canvas.width / rect.width;
     const x = (e.clientX - rect.left) * scaleX;
 
-    const paddingX = 24;
-    const drawWidth = canvas.width - paddingX * 2;
+    const plotLeft = 48;
+    const drawWidth = Math.max(10, canvas.width - plotLeft - 14);
     const markers = config.frequencyMarkers || [];
 
     let hitMarkerId: string | null = null;
@@ -817,7 +817,7 @@ export function AnalyserCanvas({
       } else {
         rX = (m.frequency - zoomMin) / (zoomMax - zoomMin);
       }
-      const mx = paddingX + rX * drawWidth;
+      const mx = plotLeft + rX * drawWidth;
       const dist = Math.abs(x - mx);
       if (dist < minDistance) {
         minDistance = dist;
@@ -838,9 +838,9 @@ export function AnalyserCanvas({
     const scaleX = canvas.width / rect.width;
     const x = (e.clientX - rect.left) * scaleX;
 
-    const paddingX = 24;
-    const drawWidth = canvas.width - paddingX * 2;
-    const clampedX = Math.max(0, Math.min(drawWidth, x - paddingX));
+    const plotLeft = 48;
+    const drawWidth = Math.max(10, canvas.width - plotLeft - 14);
+    const clampedX = Math.max(0, Math.min(drawWidth, x - plotLeft));
     const ratioX = clampedX / drawWidth;
 
     let clickedFreq = 0;
@@ -866,9 +866,9 @@ export function AnalyserCanvas({
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
 
-    const paddingX = 24;
-    const drawWidth = canvas.width - paddingX * 2;
-    const adjustedX = x - paddingX;
+    const plotLeft = 48;
+    const drawWidth = Math.max(10, canvas.width - plotLeft - 14);
+    const adjustedX = x - plotLeft;
 
     // 1. If currently dragging a marker, update its frequency in real time
     if (draggingMarkerId) {
@@ -906,7 +906,7 @@ export function AnalyserCanvas({
       } else {
         rX = (m.frequency - zoomMin) / (zoomMax - zoomMin);
       }
-      const mx = paddingX + rX * drawWidth;
+      const mx = plotLeft + rX * drawWidth;
       if (Math.abs(x - mx) <= 16) {
         isNearMarker = true;
       }
@@ -931,8 +931,9 @@ export function AnalyserCanvas({
       freq = zoomMin + ratioX * (zoomMax - zoomMin); // Linear projection
     }
 
-    // Map Y position back to decibel levels
-    const ratioY = 1 - (y / canvas.height); // 0 (bottom) to 1 (top)
+    // Map Y position back to decibel levels inside vertical plot area
+    const plotHeight = Math.max(10, canvas.height - 22);
+    const ratioY = 1 - Math.max(0, Math.min(1, y / plotHeight)); // 0 (bottom) to 1 (top)
     const db = config.minDecibels + ratioY * (config.maxDecibels - config.minDecibels);
 
     const note = frequencyToNote(freq);
@@ -1361,13 +1362,16 @@ export function AnalyserCanvas({
         ctx.fillStyle = palette.bgDark;
         ctx.fillRect(0, 0, width, height);
 
-        // Save and apply horizontal and vertical padding (for margins)
+        // Save and apply horizontal and vertical padding for spectrum graph bounds
         ctx.save();
-        const paddingX = 24;
-        const paddingBottom = 20;
-        const scaleX = (width - paddingX * 2) / width;
-        const scaleY = (height - paddingBottom) / height;
-        ctx.translate(paddingX, 0);
+        const plotLeft = 48;
+        const plotRightMargin = 14;
+        const plotBottom = 22;
+        const plotWidth = Math.max(10, width - plotLeft - plotRightMargin);
+        const plotHeight = Math.max(10, height - plotBottom);
+        const scaleX = plotWidth / width;
+        const scaleY = plotHeight / height;
+        ctx.translate(plotLeft, 0);
         ctx.scale(scaleX, scaleY);
 
         // Draw selected top visualizer graphics
@@ -1391,19 +1395,15 @@ export function AnalyserCanvas({
         // Restore transformation matrix
         ctx.restore();
 
-        // Draw standard measurement grid if enabled (OUTSIDE scaled block for perfect margins)
-        if (deck1ShowGrid) {
-          if (topMode !== VisualizerMode.WAVEFORM && topMode !== VisualizerMode.HEATMAP) {
-            drawGridLines(ctx, width, height, palette);
-          }
+        // Draw standard measurement grid and vertical dB values (OUTSIDE scaled block for perfect margins)
+        if (topMode !== VisualizerMode.WAVEFORM && topMode !== VisualizerMode.HEATMAP) {
+          drawGridLines(ctx, width, height, palette, deck1ShowGrid);
         }
 
         // Draw hover interactivity crosshair badge if active (rendered unscaled to prevent squished text)
         if (hoverData && topMode !== VisualizerMode.WAVEFORM) {
           // Restrict hover drawing to within the active spectrum bounds
-          const activeWidth = width - paddingX * 2;
-          const activeHeight = height - paddingBottom;
-          if (hoverData.x >= paddingX && hoverData.x <= paddingX + activeWidth && hoverData.y >= 0 && hoverData.y <= activeHeight) {
+          if (hoverData.x >= plotLeft && hoverData.x <= plotLeft + plotWidth && hoverData.y >= 0 && hoverData.y <= plotHeight) {
             drawHoverCrosshair(ctx, width, height, hoverData, palette);
           }
         }
@@ -1456,34 +1456,117 @@ export function AnalyserCanvas({
       ctx.fillText('[ AUDIO DECK OFFLINE - COMMENCE ENGINE TO ANALYZE ]', width / 2, height / 2);
     };
 
-    const drawGridLines = (ctx: CanvasRenderingContext2D, width: number, height: number, palette: any) => {
-      ctx.strokeStyle = palette.gridColor || 'rgba(255, 255, 255, 0.05)';
-      ctx.lineWidth = 0.75;
-      ctx.font = 'normal 11px "Geist Pixel", monospace';
-      ctx.fillStyle = '#ffffff';
-
+    const drawGridLines = (
+      ctx: CanvasRenderingContext2D,
+      width: number,
+      height: number,
+      palette: any,
+      showInnerGrid: boolean = true
+    ) => {
       const scaleLog = config.frequencyScale === FrequencyScale.LOGARITHMIC;
-      const paddingX = 24;
-      const paddingBottom = 20;
-      const drawWidth = width - paddingX * 2;
-      const drawHeight = height - paddingBottom;
-      
+      const plotLeft = 48;
+      const plotRightMargin = 14;
+      const plotBottom = 22;
+      const plotWidth = Math.max(10, width - plotLeft - plotRightMargin);
+      const plotHeight = Math.max(10, height - plotBottom);
+
+      // 1. Dedicated vertical dB scale gutter background for 100% legibility
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(0, 0, plotLeft, plotHeight);
+
+      // 2. Vertical axis dividing line separating dB scale gutter from frequency plot
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(plotLeft, 0);
+      ctx.lineTo(plotLeft, plotHeight);
+      ctx.stroke();
+
+      // 3. Right boundary axis line for visual balance
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.beginPath();
+      ctx.moveTo(plotLeft + plotWidth, 0);
+      ctx.lineTo(plotLeft + plotWidth, plotHeight);
+      ctx.stroke();
+
+      // 4. Vertical dB Scale Header Tag: "dB" in distinctive red
+      ctx.fillStyle = '#b20000';
+      ctx.font = '600 10px "Geist Mono", monospace';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'top';
+      ctx.fillText('dB', plotLeft - 7, 4);
+
+      // 5. Decibel Intervals & Horizontal Grid Lines
+      let dbGridIntervals = [0, -6, -12, -18, -24, -30, -36, -42, -48, -54, -60, -72, -84, -96, -108, -120];
+      if (plotHeight < 190) {
+        dbGridIntervals = [0, -6, -12, -24, -36, -48, -60, -84, -120];
+      }
+      if (plotHeight < 115) {
+        dbGridIntervals = [0, -12, -24, -48, -72, -120];
+      }
+
+      dbGridIntervals.forEach((db) => {
+        const ratioY = 1 - ((db - config.minDecibels) / (config.maxDecibels - config.minDecibels));
+        let y = ratioY * plotHeight;
+        if (y < 0 || y > plotHeight) return;
+
+        if (db === config.maxDecibels) y = 1.5;
+        if (db === config.minDecibels) y = plotHeight - 1.5;
+
+        // Horizontal dashed grid line across the spectrum plot area
+        if (showInnerGrid) {
+          ctx.strokeStyle = palette.gridColor || 'rgba(255, 255, 255, 0.08)';
+          ctx.beginPath();
+          ctx.setLineDash([1, 5]);
+          ctx.moveTo(plotLeft, y);
+          ctx.lineTo(plotLeft + plotWidth, y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        // Left tick mark on vertical dB axis
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.beginPath();
+        ctx.moveTo(plotLeft - 4, y);
+        ctx.lineTo(plotLeft, y);
+        ctx.stroke();
+
+        // Right tick mark
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.20)';
+        ctx.beginPath();
+        ctx.moveTo(plotLeft + plotWidth, y);
+        ctx.lineTo(plotLeft + plotWidth + 3, y);
+        ctx.stroke();
+
+        // High-contrast vertical decibel value text label (unclipped with 7px margin from axis)
+        if (db === 0) {
+          ctx.fillStyle = '#FF3333'; // Red for 0 dB ceiling
+        } else if (db >= -6) {
+          ctx.fillStyle = '#F59E0B'; // Amber for -6 dB
+        } else if (db >= -36) {
+          ctx.fillStyle = '#F2F2F2'; // Crisp white for active audio range
+        } else {
+          ctx.fillStyle = '#B8B8B8'; // Secondary silver for lower range
+        }
+
+        ctx.font = '600 10px "Geist Mono", monospace';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        const dbStr = db === 0 ? '0' : `${db}`;
+        ctx.fillText(dbStr, plotLeft - 7, y);
+      });
+
+      // 6. Frequency Grid (Vertical lines + labels along bottom margin)
       const BASE_FREQ_LOG_GRID = [20, 30, 40, 50, 70, 100, 150, 200, 300, 400, 500, 700, 1000, 1500, 2000, 3000, 4000, 5000, 7000, 10000, 15000, 20000];
       const BASE_FREQ_LIN_GRID = [100, 500, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000, 15000, 16000, 17000, 18000, 19000, 20000];
       const baseGrid = scaleLog ? BASE_FREQ_LOG_GRID : BASE_FREQ_LIN_GRID;
-      
-      // Filter base grid to keep frequencies within current zoom limits
       let gridFreqs = baseGrid.filter(f => f >= zoomMin && f <= zoomMax);
 
-      // Thinning out grids to prevent overlap in smaller panel dimensions
-      if (drawWidth < 450) {
+      if (plotWidth < 450) {
         gridFreqs = gridFreqs.filter(freq => freq === zoomMin || freq === zoomMax || freq === 100 || freq === 1000 || freq === 10000);
       }
 
-      // To prevent overlapping labels, we will keep track of drawn label positions
       let lastLabelX = -999;
-
-      // 1. Draw Frequency Grid (Vertical lines + labels)
       gridFreqs.forEach((freq) => {
         let ratioX = 0;
         if (scaleLog) {
@@ -1494,87 +1577,48 @@ export function AnalyserCanvas({
           ratioX = (freq - zoomMin) / (zoomMax - zoomMin);
         }
 
-        let x = paddingX + ratioX * drawWidth;
-        if (x < paddingX || x > paddingX + drawWidth) return;
+        let x = plotLeft + ratioX * plotWidth;
+        if (x < plotLeft || x > plotLeft + plotWidth) return;
 
-        // Inset vertical lines on the extreme edges slightly so they are fully visible within animation bounds
-        if (freq === zoomMin) {
-          x = paddingX + 1.5;
-        } else if (freq === zoomMax) {
-          x = paddingX + drawWidth - 1.5;
+        if (freq === zoomMin) x = plotLeft + 1.5;
+        if (freq === zoomMax) x = plotLeft + plotWidth - 1.5;
+
+        if (showInnerGrid) {
+          ctx.strokeStyle = palette.gridColor || 'rgba(255, 255, 255, 0.05)';
+          ctx.beginPath();
+          ctx.setLineDash([2, 4]);
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, plotHeight);
+          ctx.stroke();
+          ctx.setLineDash([]);
         }
 
-        ctx.strokeStyle = palette.gridColor || 'rgba(255, 255, 255, 0.05)';
-        ctx.beginPath();
-        ctx.setLineDash([3, 4]);
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, drawHeight);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Label formatting inside bottom margin
-        const label = freq >= 1000 ? `${(freq / 1000).toFixed(freq % 1000 === 0 ? 0 : 1)}kHz` : `${freq}Hz`;
-        
-        const isEdge = freq === zoomMin || freq === zoomMax;
-        const canDrawLabel = isEdge || (x - lastLabelX > 45 && (paddingX + drawWidth) - x > 30);
-
-        if (canDrawLabel) {
-          ctx.fillStyle = '#ffffff';
-          if (freq === zoomMin) {
-            ctx.textAlign = 'left';
-            ctx.fillText(label, paddingX, height - 5);
-          } else if (freq === zoomMax) {
-            ctx.textAlign = 'right';
-            ctx.fillText(label, paddingX + drawWidth, height - 5);
-          } else {
-            ctx.textAlign = 'center';
-            ctx.fillText(label, x, height - 5);
-          }
-          lastLabelX = x;
-        }
-      });
-
-      // 2. Draw Decibel Grid (Horizontal lines + labels)
-      let dbGridIntervals = DB_GRID;
-      if (drawHeight < 150) {
-        dbGridIntervals = [-6, -18, -36, -60, -96];
-      }
-      if (drawHeight < 90) {
-        dbGridIntervals = [-12, -48, -96];
-      }
-
-      dbGridIntervals.forEach((db) => {
-        const ratioY = 1 - ((db - config.minDecibels) / (config.maxDecibels - config.minDecibels));
-        let y = ratioY * drawHeight;
-        if (db === config.minDecibels || y >= drawHeight - 4 || y < 0 || y > drawHeight) return; // Skip minDecibels and bottom edge to prevent line across bottom floor
-
-        // Inset horizontal lines on extreme edges slightly so they are fully visible
-        if (db === config.maxDecibels) {
-          y = 1.5;
-        }
-
-        ctx.strokeStyle = palette.gridColor || 'rgba(255, 255, 255, 0.05)';
-        ctx.beginPath();
-        ctx.setLineDash([1, 6]);
-        ctx.moveTo(paddingX, y);
-        ctx.lineTo(paddingX + drawWidth, y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Tick mark in left margin
+        // Bottom tick
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
         ctx.beginPath();
-        ctx.moveTo(paddingX - 3, y);
-        ctx.lineTo(paddingX, y);
+        ctx.moveTo(x, plotHeight);
+        ctx.lineTo(x, plotHeight + 3);
         ctx.stroke();
 
-        // Label formatting in left margin (unaligned with animation, starting at x = 0 to 24)
-        ctx.fillStyle = '#ffffff';
-        ctx.textAlign = 'right';
-        if (db === config.maxDecibels) {
-          ctx.fillText(`${db}dB`, paddingX - 5, y + 8);
-        } else {
-          ctx.fillText(`${db}dB`, paddingX - 5, y + 3);
+        const label = freq >= 1000 ? `${(freq / 1000).toFixed(freq % 1000 === 0 ? 0 : 1)}k` : `${freq}`;
+        const isEdge = freq === zoomMin || freq === zoomMax;
+        const canDrawLabel = isEdge || (x - lastLabelX > 40 && (plotLeft + plotWidth) - x > 25);
+
+        if (canDrawLabel) {
+          ctx.fillStyle = isEdge ? '#F2F2F2' : '#B8B8B8';
+          ctx.font = '500 10px "Geist Mono", monospace';
+          ctx.textBaseline = 'top';
+          if (freq === zoomMin) {
+            ctx.textAlign = 'left';
+            ctx.fillText(label, plotLeft, plotHeight + 4);
+          } else if (freq === zoomMax) {
+            ctx.textAlign = 'right';
+            ctx.fillText(label, plotLeft + plotWidth, plotHeight + 4);
+          } else {
+            ctx.textAlign = 'center';
+            ctx.fillText(label, x, plotHeight + 4);
+          }
+          lastLabelX = x;
         }
       });
     };
@@ -2002,8 +2046,8 @@ export function AnalyserCanvas({
           ctx.lineTo(startX + w, y);
           ctx.stroke();
 
-          ctx.fillStyle = '#ffffff';
-          ctx.font = 'normal 10px "Geist Pixel", monospace';
+          ctx.fillStyle = '#B8B8B8';
+          ctx.font = '500 10px "Geist Mono", monospace';
           ctx.fillText(`${factor > 0 ? '-' : '+'}${Math.abs(Math.round(factor * 100))}%`, startX + 6, y - 2);
         });
 
@@ -2045,8 +2089,8 @@ export function AnalyserCanvas({
         ctx.setLineDash([]);
 
         // Small T marker at right edge
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 10px "Geist Pixel", monospace';
+        ctx.fillStyle = '#F2F2F2';
+        ctx.font = '600 10px "Geist Mono", monospace';
         ctx.fillText('T', startX + w - 12, triggerY - 2);
         ctx.restore();
       }
@@ -2129,7 +2173,7 @@ export function AnalyserCanvas({
 
       // Top-left badge: OSCILLOSCOPE + [FROZEN] indicator if applicable
       ctx.fillStyle = 'rgba(7, 7, 7, 0.9)';
-      const badgeWidth = isFrozen ? 230 : 175;
+      const badgeWidth = isFrozen ? 250 : 195;
       ctx.fillRect(startX + 8, startY + 6, badgeWidth, 18);
       ctx.strokeStyle = isFrozen ? '#FF444480' : '#B20000';
       ctx.lineWidth = 1;
@@ -2140,24 +2184,24 @@ export function AnalyserCanvas({
       ctx.arc(startX + 16, startY + 15, 3, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = '#9CA3AF';
-      ctx.font = 'bold 9px "Geist Pixel", monospace';
+      ctx.fillStyle = '#B8B8B8';
+      ctx.font = '600 10px "Geist Mono", monospace';
       ctx.fillText(isFrozen ? 'TIME-DOMAIN OSCILLOSCOPE [FROZEN]' : 'TIME-DOMAIN OSCILLOSCOPE', startX + 24, startY + 18);
 
-      // Top-right readout: Vpp, RMS, Trigger status, Timebase zoom (Gray text, no cyan)
+      // Top-right readout: Vpp, RMS, Trigger status, Timebase zoom (Crisp #F2F2F2 text)
       const trigLabel = triggerLocked ? 'LOCK' : 'AUTO';
       const trigVal = `${triggerThreshold > 0 ? '+' : ''}${triggerThreshold}%`;
       const infoText = `Vpp: ${vpp} | RMS: ${rmsDb} dB | TRIG: ${trigLabel} ${trigVal} | TB: ${effectiveTimebase.toFixed(2)}x`;
 
+      ctx.font = '500 11px "Geist Mono", monospace';
       ctx.fillStyle = 'rgba(7, 7, 7, 0.9)';
       const infoWidth = ctx.measureText(infoText).width + 16;
       ctx.fillRect(startX + w - infoWidth - 8, startY + 6, infoWidth, 18);
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
       ctx.strokeRect(startX + w - infoWidth - 8, startY + 6, infoWidth, 18);
 
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'normal 11px "Geist Pixel", monospace';
-      ctx.fillText(infoText, startX + w - infoWidth, startY + 18);
+      ctx.fillStyle = '#F2F2F2';
+      ctx.fillText(infoText, startX + w - infoWidth + 8, startY + 18);
 
       ctx.restore();
     };
@@ -2205,8 +2249,8 @@ export function AnalyserCanvas({
           ctx.lineTo(startX + w, y);
           ctx.stroke();
 
-          ctx.fillStyle = '#ffffff';
-          ctx.font = 'normal 10px "Geist Pixel", monospace';
+          ctx.fillStyle = '#B8B8B8';
+          ctx.font = '500 10px "Geist Mono", monospace';
           ctx.fillText(`${factor > 0 ? '-' : '+'}${Math.abs(Math.round(factor * 100))}%`, startX + 6, y - 2);
         });
 
@@ -2224,8 +2268,8 @@ export function AnalyserCanvas({
             const t = frac * duration;
             const mins = Math.floor(t / 60);
             const secs = Math.floor(t % 60);
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'normal 10px "Geist Pixel", monospace';
+            ctx.fillStyle = '#F2F2F2';
+            ctx.font = '500 10px "Geist Mono", monospace';
             ctx.fillText(`${mins}:${secs < 10 ? '0' : ''}${secs}`, gx + 4, startY + h - 4);
           }
         });
@@ -2661,8 +2705,8 @@ export function AnalyserCanvas({
     const drawGridLinesHorizontal = (ctx: CanvasRenderingContext2D, width: number, height: number, palette: any) => {
       ctx.strokeStyle = palette.gridColor || 'rgba(255, 255, 255, 0.05)';
       ctx.lineWidth = 0.75;
-      ctx.font = 'normal 11px "Geist Pixel", monospace';
-      ctx.fillStyle = '#ffffff';
+      ctx.font = '500 10px "Geist Mono", monospace';
+      ctx.fillStyle = '#B8B8B8';
 
       const scaleLog = config.frequencyScale === FrequencyScale.LOGARITHMIC;
       const paddingX = 24;
@@ -2712,7 +2756,7 @@ export function AnalyserCanvas({
         
         const canDrawLabel = freq === zoomMin || freq === zoomMax || (lastLabelY - y > 24 && y > 15);
         if (canDrawLabel) {
-          ctx.fillStyle = '#ffffff';
+          ctx.fillStyle = freq === zoomMin || freq === zoomMax ? '#F2F2F2' : '#B8B8B8';
           ctx.textAlign = 'right';
           ctx.fillText(label, paddingX - 5, y + 3);
           lastLabelY = y;
@@ -2731,8 +2775,8 @@ export function AnalyserCanvas({
         ctx.stroke();
 
         // Optional time intervals text in the bottom margin
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.font = 'normal 8px "Geist Pixel", monospace';
+        ctx.fillStyle = '#858585';
+        ctx.font = '500 10px "Geist Mono", monospace';
         ctx.textAlign = 'center';
         ctx.fillText(`-${((1 - t) * 10).toFixed(1)}s`, x, height - 5);
       });
@@ -2932,9 +2976,9 @@ export function AnalyserCanvas({
       sampleRate: number
     ) => {
       if (!markers || markers.length === 0) return;
-      const paddingX = 24;
-      const paddingBottom = 28;
-      const activeWidth = width - paddingX * 2;
+      const plotLeft = 48;
+      const paddingBottom = 22;
+      const activeWidth = Math.max(10, width - plotLeft - 14);
       const activeHeight = height - paddingBottom;
 
       markers.forEach((marker) => {
@@ -2950,7 +2994,7 @@ export function AnalyserCanvas({
 
         if (ratioX < 0 || ratioX > 1) return; // Outside active zoom window
 
-        const markerX = paddingX + ratioX * activeWidth;
+        const markerX = plotLeft + ratioX * activeWidth;
 
         // Sample live decibel level at marker's exact frequency
         let liveDb = -120;
@@ -2996,7 +3040,7 @@ export function AnalyserCanvas({
         // 4. Draw node decibel readout badge on curve
         ctx.save();
         const dbStr = liveDb <= -119 ? '-∞ dB' : `${liveDb.toFixed(1)} dB`;
-        ctx.font = 'bold 9px "Geist Pixel", monospace';
+        ctx.font = '600 10px "Geist Mono", monospace';
         const dbMetrics = ctx.measureText(dbStr);
         const pillW = dbMetrics.width + 10;
         const pillH = 16;
@@ -3014,7 +3058,7 @@ export function AnalyserCanvas({
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = isDragging ? '#FFFFFF' : '#F0F0F0';
+        ctx.fillStyle = isDragging ? '#FFFFFF' : '#F2F2F2';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         ctx.fillText(dbStr, pillX + 5, pillY + pillH / 2);
@@ -3028,13 +3072,13 @@ export function AnalyserCanvas({
         const noteStr = frequencyToNote(marker.frequency);
         const headerLabel = marker.label ? `${marker.label}: ${freqStr}` : freqStr;
         const fullTag = `${headerLabel} [${noteStr}]`;
-        ctx.font = 'bold 11px "Geist Pixel", monospace';
+        ctx.font = '600 11px "Geist Mono", monospace';
         const tagMetrics = ctx.measureText(fullTag);
         const tagW = tagMetrics.width + 14;
         const tagH = 18;
         let tagX = markerX - tagW / 2;
-        if (tagX < paddingX) tagX = paddingX;
-        if (tagX + tagW > width - paddingX) tagX = width - paddingX - tagW;
+        if (tagX < plotLeft) tagX = plotLeft;
+        if (tagX + tagW > width - 14) tagX = width - 14 - tagW;
         const tagY = 6;
 
         ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
@@ -3214,7 +3258,7 @@ export function AnalyserCanvas({
                 <div className="p-1.5 bg-[#181818] border border-[#4a4a4a] flex items-center justify-center text-[#b20000]">
                   <AudioLines className="w-4 h-4 text-[#b20000]" />
                 </div>
-                <h1 className="text-xs font-bold tracking-[1.4px] text-white font-sans uppercase animate-fade-in">
+                <h1 className="text-xs font-semibold tracking-[1.4px] text-[#F2F2F2] font-sans uppercase animate-fade-in">
                   Spectrum Analyzer Deck
                 </h1>
               </div>
@@ -3223,7 +3267,7 @@ export function AnalyserCanvas({
                 className="flex items-center gap-1.5 p-1 bg-[#181818] border border-[#4a4a4a] h-7"
                 title="Select spectrum render method"
               >
-                <span className="text-[#aaaaaa] pl-1 text-[10px] font-sans font-bold uppercase tracking-[1px]">Mode:</span>
+                <span className="text-[#B8B8B8] pl-1 text-[11px] font-sans font-medium uppercase tracking-[1px]">Mode:</span>
                 <select
                   id="select-spectrum-style-header"
                   value={config.visualizerMode}
@@ -3235,7 +3279,7 @@ export function AnalyserCanvas({
                       splitWaterfall: true
                     }));
                   }}
-                  className="bg-transparent border-0 text-white focus:outline-none cursor-pointer font-sans text-[10px] font-bold uppercase tracking-[1px] pr-1"
+                  className="bg-transparent border-0 text-[#F2F2F2] focus:outline-none cursor-pointer font-sans text-[11px] font-medium uppercase tracking-[1px] pr-1"
                 >
                   <option value={VisualizerMode.SPECTRUM_BARS} className="bg-[#181818]">Vertical Bars</option>
                   <option value={VisualizerMode.SPECTRUM_CURVE} className="bg-[#181818]">Curve</option>
@@ -3251,7 +3295,7 @@ export function AnalyserCanvas({
                 title="Adjust the vertical height of the primary visualizer (120px to 480px)"
                 id="header-primary-height-control"
               >
-                <span className="text-[#aaaaaa] text-[10px] uppercase font-sans font-bold tracking-[1px]">Height:</span>
+                <span className="text-[#B8B8B8] text-[11px] uppercase font-sans font-medium tracking-[1px]">Height:</span>
                 <input
                   id="slider-header-main-height"
                   type="range"
@@ -3265,7 +3309,7 @@ export function AnalyserCanvas({
                   }}
                   className="w-16 accent-[#b20000] h-1 bg-[#121212] cursor-pointer"
                 />
-                <span className="text-[#cccccc] font-sans text-[10px] w-8 text-right font-bold shrink-0">{primaryHeight}px</span>
+                <span className="text-[#F2F2F2] font-sans text-[11px] w-8 text-right font-semibold shrink-0">{primaryHeight}px</span>
               </div>
 
               {/* Grid Toggle Button - styled like auto-reset */}
@@ -3275,10 +3319,10 @@ export function AnalyserCanvas({
                 onClick={() => {
                   setDeck1ShowGrid(!deck1ShowGrid);
                 }}
-                className={`px-2.5 py-1 text-[10px] font-sans font-bold uppercase tracking-[1px] border transition-colors cursor-pointer h-7 flex items-center justify-center select-none ${
+                className={`px-2.5 py-1 text-[11px] font-sans font-medium uppercase tracking-[1px] border transition-colors cursor-pointer h-7 flex items-center justify-center select-none ${
                   deck1ShowGrid
                     ? 'bg-[#b20000] border-[#b20000] text-white'
-                    : 'bg-[#181818] border-[#4a4a4a] text-[#cccccc] hover:bg-white hover:text-[#111111]'
+                    : 'bg-[#181818] border-[#4a4a4a] text-[#B8B8B8] hover:bg-white hover:text-[#111111]'
                 }`}
                 title="Toggle measurement grid lines displaying decibel (dB) amplitudes and logarithmic frequency bounds."
               >
@@ -3310,7 +3354,7 @@ export function AnalyserCanvas({
           {/* Top Primary View: Bars, Curve, Oscilloscope, or Waterfall */}
           <div 
             style={{ height: `${primaryHeight}px` }} 
-            className="w-full relative cursor-crosshair overflow-hidden bg-[#070707] rounded-none shrink-0 shadow-inner px-4" 
+            className="w-full relative cursor-crosshair overflow-hidden bg-[#070707] rounded-none shrink-0 shadow-inner px-0" 
             id="primary-canvas-wrapper"
           >
             <canvas 
@@ -3327,12 +3371,12 @@ export function AnalyserCanvas({
         </div>
 
         {/* Interactive Frequency Markers Bar */}
-        <div className="flex flex-wrap items-center justify-between p-2.5 px-4 bg-[#121212] border-t border-[#4a4a4a] text-[10px] gap-3 select-none" id="interactive-frequency-markers-bar">
+        <div className="flex flex-wrap items-center justify-between p-2.5 px-4 bg-[#121212] border-t border-[#4a4a4a] text-[11px] gap-3 select-none" id="interactive-frequency-markers-bar">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="flex items-center gap-1.5 font-sans text-[10px] text-[#cccccc] uppercase font-bold tracking-[1px]">
+            <div className="flex items-center gap-1.5 font-sans text-[11px] text-[#B8B8B8] uppercase font-medium tracking-[1px]">
               <span className="text-[#b20000] text-xs leading-none">●</span>
               <span>Frequency Markers</span>
-              <span className="px-1.5 py-0.5 bg-[#181818] border border-[#4a4a4a] text-white font-sans text-[9px] font-bold">
+              <span className="px-1.5 py-0.5 bg-[#181818] border border-[#4a4a4a] text-[#F2F2F2] font-sans text-[10px] font-semibold">
                 {activeMarkers.length}
               </span>
             </div>
@@ -3353,10 +3397,10 @@ export function AnalyserCanvas({
                     key={preset.label}
                     type="button"
                     onClick={() => addMarkerAtFreq(preset.freq, preset.label)}
-                    className={`px-2 py-0.5 text-[9px] font-sans font-bold uppercase tracking-[1px] border transition-colors cursor-pointer select-none ${
+                    className={`px-2 py-0.5 text-[10px] font-sans font-medium uppercase tracking-[0.5px] border transition-colors cursor-pointer select-none ${
                       exists
                         ? 'bg-[#b20000] border-[#b20000] text-white'
-                        : 'bg-[#181818] border-[#4a4a4a] text-[#cccccc] hover:bg-white hover:text-[#111111]'
+                        : 'bg-[#181818] border-[#4a4a4a] text-[#B8B8B8] hover:bg-white hover:text-[#111111]'
                     }`}
                     title={`Add ${preset.label} marker at ${preset.freq} Hz`}
                   >
@@ -3368,7 +3412,7 @@ export function AnalyserCanvas({
               <button
                 type="button"
                 onClick={() => addMarkerAtFreq(1000, 'MARKER')}
-                className="px-2 py-0.5 text-[9px] font-sans font-bold uppercase tracking-[1px] bg-[#181818] border border-[#b20000] text-[#b20000] hover:bg-[#b20000] hover:text-white transition-colors cursor-pointer"
+                className="px-2 py-0.5 text-[10px] font-sans font-medium uppercase tracking-[0.5px] bg-[#181818] border border-[#b20000] text-[#FF3333] hover:bg-[#b20000] hover:text-white transition-colors cursor-pointer"
                 title="Add custom frequency marker at 1 kHz"
               >
                 + New Marker
@@ -3378,7 +3422,7 @@ export function AnalyserCanvas({
                 <button
                   type="button"
                   onClick={clearAllMarkers}
-                  className="px-1.5 py-0.5 text-[9px] font-sans font-bold uppercase tracking-[1px] bg-[#181818] border border-[#4a4a4a] text-[#aaaaaa] hover:bg-white hover:text-[#111111] transition-colors cursor-pointer"
+                  className="px-1.5 py-0.5 text-[10px] font-sans font-medium uppercase tracking-[0.5px] bg-[#181818] border border-[#4a4a4a] text-[#858585] hover:bg-white hover:text-[#111111] transition-colors cursor-pointer"
                   title="Clear all active markers"
                 >
                   Clear All
@@ -3390,7 +3434,7 @@ export function AnalyserCanvas({
           {/* Active Marker Badges with Real-Time Decibel Readout */}
           <div className="flex items-center gap-1.5 flex-wrap overflow-x-auto max-w-full py-0.5">
             {activeMarkers.length === 0 ? (
-              <span className="text-[10px] font-sans text-[#aaaaaa] uppercase tracking-wider">
+              <span className="text-[11px] font-sans text-[#858585] uppercase tracking-wider">
                 Double-click anywhere on spectrum or click presets above to track frequencies
               </span>
             ) : (
@@ -3409,21 +3453,21 @@ export function AnalyserCanvas({
                     className={`flex items-center gap-1.5 px-2 py-0.5 border transition-colors ${
                       isDragging 
                         ? 'bg-[#b20000] border-[#b20000] text-white' 
-                        : 'bg-[#181818] border-[#4a4a4a] text-white'
+                        : 'bg-[#181818] border-[#4a4a4a] text-[#F2F2F2]'
                     }`}
                   >
                     <span className="w-1.5 h-1.5 bg-[#b20000] shrink-0" />
-                    <span className="font-sans text-[10px] font-bold text-white uppercase tracking-[0.5px]">
+                    <span className="font-sans text-[11px] font-semibold text-[#F2F2F2] uppercase tracking-[0.5px]">
                       {marker.label ? `${marker.label}: ` : ''}{freqText}
                     </span>
-                    <span className="font-sans text-[9px] text-[#aaaaaa]">[{note}]</span>
-                    <span className="font-sans text-[10px] font-bold text-white bg-[#121212] px-1.5 py-0.5 border border-[#4a4a4a]">
+                    <span className="font-sans text-[10px] text-[#858585]">[{note}]</span>
+                    <span className="font-sans text-[11px] font-semibold text-[#F2F2F2] bg-[#121212] px-1.5 py-0.5 border border-[#4a4a4a]">
                       {dbText}
                     </span>
                     <button
                       type="button"
                       onClick={() => removeMarker(marker.id)}
-                      className="text-[#aaaaaa] hover:text-white text-xs leading-none p-0.5 ml-0.5 cursor-pointer"
+                      className="text-[#858585] hover:text-white text-xs leading-none p-0.5 ml-0.5 cursor-pointer"
                       title="Remove marker"
                     >
                       &times;
@@ -3436,14 +3480,14 @@ export function AnalyserCanvas({
         </div>
 
         {/* Visualizer Settings footer strip */}
-        <div className="flex flex-wrap items-center justify-between p-3 px-4 bg-[#121212] text-[10px] text-[#aaaaaa] font-sans gap-3" id="visualizer-footer">
+        <div className="flex flex-wrap items-center justify-between p-3 px-4 bg-[#121212] text-[11px] text-[#B8B8B8] font-sans gap-3" id="visualizer-footer">
           {/* Frequency Focus on one line */}
           <div 
             className="flex items-center gap-3"
             title="Frequency Focus: Instantly restrict viewable spectrum range to specific bands."
             id="control-frequency-zoom"
           >
-            <span className="text-[#aaaaaa] font-bold uppercase text-[9px] tracking-[1px] font-sans">Freq Focus:</span>
+            <span className="text-[#B8B8B8] font-medium uppercase text-[11px] tracking-[1px] font-sans">Freq Focus:</span>
             <div className="flex items-center gap-1.5 flex-wrap">
               {[
                 { name: 'SUB', min: 20, max: 80, label: 'Sub-bass Focus (20Hz - 80Hz)' },
@@ -3462,10 +3506,10 @@ export function AnalyserCanvas({
                       setZoomMin(b.min);
                       setZoomMax(b.max);
                     }}
-                    className={`px-2 py-1 text-[9px] font-sans tracking-[1px] font-bold uppercase transition-colors border cursor-pointer select-none ${
+                    className={`px-2 py-1 text-[10px] font-sans tracking-[1px] font-medium uppercase transition-colors border cursor-pointer select-none ${
                       isActive
                         ? 'bg-[#b20000] border-[#b20000] text-white'
-                        : 'bg-[#181818] border-[#4a4a4a] text-[#cccccc] hover:bg-white hover:text-[#111111]'
+                        : 'bg-[#181818] border-[#4a4a4a] text-[#B8B8B8] hover:bg-white hover:text-[#111111]'
                     }`}
                     title={b.label}
                   >
@@ -3474,9 +3518,9 @@ export function AnalyserCanvas({
                 );
               })}
             </div>
-            <span className="text-[10px] text-white font-bold pl-2 border-l border-[#4a4a4a] flex items-center gap-1 font-sans">
-              <span className="text-[#aaaaaa] font-sans uppercase text-[9px] tracking-[1px]">Active range:</span>
-              <span className="text-white font-sans text-[10px] font-bold">{zoomMin >= 1000 ? `${(zoomMin / 1000).toFixed(zoomMin % 1000 === 0 ? 0 : 1)}k` : zoomMin}Hz - {zoomMax >= 1000 ? `${(zoomMax / 1000).toFixed(zoomMax % 1000 === 0 ? 0 : 1)}k` : zoomMax}Hz</span>
+            <span className="text-[11px] text-[#F2F2F2] font-semibold pl-2 border-l border-[#4a4a4a] flex items-center gap-1 font-sans">
+              <span className="text-[#858585] font-sans uppercase text-[10px] tracking-[1px]">Active range:</span>
+              <span className="text-[#F2F2F2] font-sans text-[11px] font-semibold">{zoomMin >= 1000 ? `${(zoomMin / 1000).toFixed(zoomMin % 1000 === 0 ? 0 : 1)}k` : zoomMin}Hz - {zoomMax >= 1000 ? `${(zoomMax / 1000).toFixed(zoomMax % 1000 === 0 ? 0 : 1)}k` : zoomMax}Hz</span>
             </span>
           </div>
         </div>
