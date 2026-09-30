@@ -1,0 +1,10 @@
+{
+  "name": "Remix BREACH.Analyzer",
+  "description": "BREACH.Analyzer is a browser-based audio analysis workstation featuring customizable, pop-out modules for loudness metering, spectrum analysis, stereo imaging, phase correlation, waveform inspection, and more. Customize your own monitoring workspace and analyze audio in real time without installing desktop software.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

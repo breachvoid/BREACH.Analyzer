@@ -1,0 +1,856 @@
+@import "tailwindcss";
+
+/* Typography Overhaul - Geist for Body/UI, Geist Pixel for Sparse Metadata */
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Light.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-ExtraBold.ttf') format('truetype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Pixel';
+  src: url('/fonts/GeistPixel.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Pixel';
+  src: url('/fonts/GeistPixel.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Pixel';
+  src: url('/fonts/GeistPixel.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Pixel';
+  src: url('/fonts/GeistPixel.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Pixel';
+  src: url('/fonts/GeistPixel.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Pixel';
+  src: url('/fonts/GeistPixel.ttf') format('truetype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --c: #121212;
+  --p: #1a1a1a;
+  --l: #4a4a4a;
+  --w: #ffffff;
+  --m: #aaaaaa;
+  --r: #b20000;
+}
+
+@theme {
+  /* Font Family Definitions: Geist for UI/Body, Geist Mono for Instruments/Data, Geist Pixel for Sparse Metadata */
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', monospace;
+  --font-pixel: 'Geist Pixel', monospace;
+
+  /* BREACH Theme Colors from guides.breach.productions */
+  --color-breach-bg: #121212;
+  --color-breach-panel: #1a1a1a;
+  --color-breach-input: #181818;
+  --color-breach-hover: #191919;
+  --color-breach-border: #4a4a4a;
+  --color-breach-muted: #aaaaaa;
+  --color-breach-red: #b20000;
+
+  /* Overrides for existing slate/neutral palette */
+  --color-slate-950: #121212;
+  --color-slate-900: #121212;
+  --color-slate-850: #1a1a1a;
+  --color-slate-800: #1a1a1a;
+  --color-slate-700: #4a4a4a;
+
+  /* BREACH Brand Accents: Red (#B20000) & Highlights */
+  --color-purple-800: #5C0000;
+  --color-purple-700: #800000;
+  --color-purple-600: #B20000;
+  --color-purple-500: #B20000;
+  --color-purple-400: #FF3333;
+  
+  --color-cyan-500: #B20000;
+  --color-cyan-400: #FF3333;
+  --color-cyan-300: #FF6666;
+  --color-rose-600: #B20000;
+  --color-rose-500: #FF3333;
+
+  /* BREACH Text Colors */
+  --color-slate-50: #FFFFFF;
+  --color-slate-100: #FFFFFF;
+  --color-slate-200: #FFFFFF;
+
+  /* BREACH Secondary Text */
+  --color-slate-400: #aaaaaa;
+  --color-slate-500: #aaaaaa;
+  --color-slate-600: #777777;
+  --color-slate-300: #d6d6d6;
+}
+
+/* Base HTML typography defaults: Geist for all UI & body */
+html, body {
+  background: #121212;
+  color: #ffffff;
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Explicit Utility Classes for Typography Hierarchy */
+.font-display,
+.font-sans {
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+}
+
+.font-mono {
+  font-family: 'Geist Mono', monospace !important;
+}
+
+.font-pixel {
+  font-family: 'Geist Pixel', monospace !important;
+}
+
+/* Custom Scrollbar for BREACH instrument surfaces */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: #000000;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1A1A1A;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #B20000;
+  border-color: #FF3333;
+}
+
+/* Firefox compatibility */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1A1A1A #000000;
+}
+
+/* Smooth interpolation for visualizer stage and contained elements */
+#visualizer-stage-section {
+  transition: border-color 0.5s cubic-bezier(0.25, 0.8, 0.25, 1),
+              box-shadow 0.5s cubic-bezier(0.25, 0.8, 0.25, 1),
+              background-color 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+#visualizer-stage-section * {
+  transition: color 0.35s ease, 
+              background-color 0.35s ease, 
+              border-color 0.35s ease, 
+              border-radius 0.35s ease,
+              text-shadow 0.35s ease, 
+              box-shadow 0.35s ease;
+}
+
+@keyframes theme-transition-pulse {
+  0% {
+    transform: scale(0.999);
+    filter: brightness(1.1);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+.animate-theme-pulse {
+  animation: theme-transition-pulse 0.45s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* ==========================================================================
+   Focus Mode CSS Overrides (Selected Elements)
+   ========================================================================== */
+
+div#root > div#workspace-root > main#main-content-stage > div#core-grid > section#meters-stage-section > div#audio-loudness-meter > div#lufs-meter-header > div#lufs-meter-title-group > h2,
+#lufs-meter-header #lufs-meter-title-group h2 {
+  font-weight: bold;
+  font-family: 'Geist', sans-serif;
+}
+
+div#root > div#workspace-root > main#main-content-stage > div#core-grid > section#vector-stage-section > div#stereo-vector-scope-card > div#vector-panel-header > div#vector-panel-title-group > h3,
+#vector-panel-header #vector-panel-title-group h3 {
+  font-family: 'Geist', sans-serif;
+}
+
+#loudness-meters-block > div:nth-of-type(1) > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+}
+
+#loudness-meters-block > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+}
+
+#peak-meters-block > div:nth-of-type(1) > span#peak-dbfs-max-text,
+#peak-dbfs-max-text {
+  font-family: 'Geist Mono', monospace;
+}
+
+#secondary-visualizer-header > div:nth-of-type(1) > div:nth-of-type(1) > h2 {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+}
+
+#secondary-visualizer-header > div#waveform-panel-upper-right-anchors > div#header-secondary-height-control > span:nth-of-type(1),
+#header-secondary-height-control > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+}
+
+#control-deck2-trigger-threshold > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+}
+
+#control-deck2-timebase > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+}
+
+#btn-deck2-freeze-toggle > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+}
+
+#select-deck2-mode-dropdown {
+  font-family: 'Geist', sans-serif;
+  line-height: normal;
+  font-weight: normal;
+}
+
+#select-deck2-mode-container > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+}
+
+#btn-deck2-grid-toggle {
+  font-weight: bold;
+}
+
+#header-secondary-height-control > span:nth-of-type(2) {
+  font-weight: bold;
+  font-family: 'Geist Mono', monospace;
+}
+
+#waterfall-canvas-wrapper > canvas {
+  font-weight: normal;
+}
+
+#waterfall-canvas-wrapper {
+  font-weight: normal;
+}
+
+#peak-meters-block > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+}
+
+#peak-meters-block {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+}
+
+#peak-meters-block > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+}
+
+#loudness-meters-block > div:nth-of-type(2) {
+  font-family: 'Geist Mono', monospace;
+}
+
+#waveform-canvas-wrapper {
+  font-weight: normal;
+}
+
+#loudness-meters-block > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+}
+
+#loudness-meters-block > div:nth-of-type(2) > div:nth-of-type(2) > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+}
+
+#loudness-meters-block > div:nth-of-type(2) > div:nth-of-type(3) > span:nth-of-type(1) {
+  font-weight: bold;
+  font-family: 'Geist', sans-serif;
+}
+
+#loudness-meters-block > div:nth-of-type(2) > div:nth-of-type(3) > span:nth-of-type(2) {
+  font-family: 'Geist', sans-serif;
+}
+
+#loudness-meters-block > div:nth-of-type(2) > div:nth-of-type(2) > span:nth-of-type(2) {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+}
+
+#loudness-meters-block > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(2) {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+}
+
+#waveform-canvas-wrapper > canvas {
+  font-weight: normal;
+}
+
+#react-correlation-panel > div:nth-of-type(1) > span {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+  font-size: 12px;
+  color: #ffffff;
+}
+
+#react-correlation-panel > div:nth-of-type(3) > span:nth-of-type(3) {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+  font-size: 12px;
+  color: #ffffff;
+}
+
+#react-correlation-panel > div:nth-of-type(3) > span:nth-of-type(2) {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+  font-size: 12px;
+  color: #ffffff;
+}
+
+#react-correlation-panel > div:nth-of-type(3) > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+#react-correlation-panel > p#correlation-explanation-text,
+#correlation-explanation-text {
+  font-family: 'Geist', sans-serif;
+  font-weight: normal;
+  font-size: 11px;
+  text-align: center;
+}
+
+#loudness-meters-block > div#lufs-scale-row > div:nth-of-type(2) > span:nth-of-type(2) {
+  font-size: 11px;
+  color: #ffffff;
+}
+
+#loudness-meters-block > div#lufs-scale-row > div:nth-of-type(2) > span:nth-of-type(1) {
+  font-size: 10px;
+  color: #ffffff;
+}
+
+#peak-meters-block > div:nth-of-type(3) > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  color: #ffffff;
+}
+
+#peak-meters-block > div:nth-of-type(3) > span:nth-of-type(2) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  color: #ffffff;
+}
+
+#trend-stage > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > span:nth-of-type(2) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  color: #ffffff;
+}
+
+#trend-stage > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3) > span:nth-of-type(2) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+}
+
+#trend-stage > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(2) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  color: #ffffff;
+}
+
+#trend-stage > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 12px;
+  color: #ffffff;
+}
+
+#compliance-block > div#measurement-details-matrix > div:nth-of-type(1) > h4 {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+  font-size: 12px;
+  color: #ffffff;
+}
+
+#compliance-block > div#measurement-details-matrix > div:nth-of-type(2) > h4 {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+  font-size: 12px;
+  color: #ffffff;
+}
+
+#compliance-block > div#measurement-details-matrix > div:nth-of-type(3) > h4 {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+  font-size: 12px;
+  color: #ffffff;
+}
+
+#compliance-block > div#measurement-details-matrix > div:nth-of-type(4) > h4 {
+  font-weight: bold;
+  font-family: 'Geist Mono', monospace;
+  font-size: 12px;
+  color: #ffffff;
+}
+
+#compliance-block > div#measurement-details-matrix > div:nth-of-type(4) > div:nth-of-type(1) > span:nth-of-type(1) {
+  font-family: 'Geist', sans-serif;
+  font-size: 16px;
+  color: #ffffff;
+}
+
+#compliance-block > div#measurement-details-matrix > div:nth-of-type(3) > div:nth-of-type(1) > span:nth-of-type(1) {
+  font-family: 'Geist', sans-serif;
+  font-size: 16px;
+  color: #ffffff;
+}
+
+#compliance-block > div#measurement-details-matrix > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(2) {
+  font-size: 13px;
+  color: #ffffff;
+}
+
+#compliance-block > div#measurement-details-matrix > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(2) {
+  font-size: 13px;
+  color: #ffffff;
+}
+
+#compliance-block > div#measurement-details-matrix > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 16px;
+  color: #ffffff;
+}
+
+#compliance-block > div#measurement-details-matrix > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 16px;
+  color: #ffffff;
+}
+
+#loudness-meters-block > div#lufs-scale-row {
+  font-family: 'Geist', sans-serif;
+  font-weight: bold;
+  font-size: 12px;
+  color: #ffffff;
+}
+
+#loudness-meters-block > div#lufs-scale-row > div:nth-of-type(2) > span:nth-of-type(3) {
+  font-size: 11px;
+  color: #ffffff;
+}
+
+#loudness-meters-block > div#lufs-scale-row > div:nth-of-type(2) {
+  font-size: 10px;
+}
+
+#loudness-meters-block > div#lufs-scale-row > div:nth-of-type(2) > span:nth-of-type(5) {
+  font-weight: bold;
+  font-size: 12px;
+  font-family: 'Geist Mono', monospace;
+}
+
+#loudness-meters-block > div#lufs-scale-row > div:nth-of-type(2) > span:nth-of-type(4) {
+  font-size: 11px;
+  color: #ffffff;
+}
+
+#loudness-meters-block > div#lufs-scale-row > div:nth-of-type(2) > span:nth-of-type(6) {
+  font-size: 11px;
+  color: #ffffff;
+}
+
+#peak-meters-block > div:nth-of-type(3) > span:nth-of-type(6) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  color: #ffffff;
+}
+
+#peak-meters-block > div:nth-of-type(3) > span:nth-of-type(4) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  color: #ffffff;
+}
+
+#peak-meters-block > div:nth-of-type(3) > span:nth-of-type(3) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  color: #ffffff;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(2) {
+  font-size: 10px;
+  font-family: 'Geist Mono', monospace;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 9.5px;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(2) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 9.5px;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(3) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 9.5px;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(4) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 9.5px;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(5) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 9.5px;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(3) {
+  font-size: 9.5px;
+  font-family: 'Geist Mono', monospace;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(2) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(3) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 9px;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(4) {
+  font-size: 10px;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(2) > div:nth-of-type(2) > span:nth-of-type(2) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(2) > div:nth-of-type(3) > span:nth-of-type(2) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(2) > div:nth-of-type(2) > span:nth-of-type(3) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 9px;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(2) > div:nth-of-type(2) > span:nth-of-type(4) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(2) > div:nth-of-type(3) > span:nth-of-type(3) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 9px;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(2) > div:nth-of-type(3) > span:nth-of-type(4) {
+  font-size: 10px;
+  font-family: 'Geist Mono', monospace;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(2) > div:nth-of-type(4) > span:nth-of-type(2) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(2) > div:nth-of-type(4) > span:nth-of-type(3) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 9px;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(2) > div:nth-of-type(4) > span:nth-of-type(4) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(7) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 9.5px;
+  font-weight: normal;
+}
+
+#interactive-frequency-markers-bar > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(8) {
+  font-size: 10.5px;
+  font-weight: bold;
+  font-family: 'Geist Mono', monospace;
+}
+
+#visualizer-header > div:nth-of-type(1) > div:nth-of-type(2) > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+}
+
+#active-track-hero-row > div:nth-of-type(2) > p:nth-of-type(2) {
+  font-family: 'Geist', sans-serif;
+  font-size: 14px;
+  text-align: center;
+  width: 579.664px;
+  max-width: 100%;
+}
+
+#active-track-hero-row > div:nth-of-type(2) > p:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+}
+
+#playlist-list-scroll > #empty-drag-drop-zone,
+#empty-drag-drop-zone {
+  font-family: 'Geist Mono', monospace;
+  font-weight: normal;
+}
+
+#empty-drag-drop-zone > p:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+}
+
+#empty-drag-drop-zone > p:nth-of-type(2) {
+  font-family: 'Geist', sans-serif;
+  font-size: 10px;
+}
+
+#empty-drag-drop-zone > p:nth-of-type(3) {
+  font-family: 'Geist', sans-serif;
+  font-weight: bold;
+  font-size: 9px;
+}
+
+#btn-add-file {
+  font-family: 'Geist Mono', monospace;
+}
+
+#btn-add-link {
+  font-family: 'Geist Mono', monospace;
+}
+
+#btn-deck1-grid-toggle {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+}
+
+#tab-btn-file > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+}
+
+#tab-btn-system > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+}
+
+#tab-btn-signal > span:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+}
+
+#tab-btn-settings > span:nth-of-type(2) {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+}
+
+#studio-deck-header > div:nth-of-type(1) > h3:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+}
+
+#visualizer-header > div:nth-of-type(1) > div:nth-of-type(1) > h1:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+}
+
+#playlist-queue-header > div:nth-of-type(1) > h3:nth-of-type(1) {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+}
+
+#btn-header-player-toggle {
+  font-family: 'Geist Mono', monospace;
+  font-weight: bold;
+}
+
+#btn-master-bypass {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+}
+
+#main-brand-logo > div:nth-of-type(2) > span:nth-of-type(1) {
+  text-align: right;
+  margin-top: -1px;
+  margin-right: 0px;
+  padding-left: 2px;
+  padding-bottom: 0px;
+  margin-left: 53px;
+  font-family: 'Geist', sans-serif;
+}
+
+#source-selector-tabs-row > span:nth-of-type(1) {
+  font-family: 'Geist', sans-serif;
+}
+
+div#root:nth-of-type(1) > div#workspace-root:nth-of-type(1) > main#main-content-stage:nth-of-type(1) > section#visualizer-stage-section:nth-of-type(2) > div#visualizer-outer-wrapper:nth-of-type(1) > div#visualizer-container:nth-of-type(1) > div#visualizer-footer:nth-of-type(4) > div#control-frequency-zoom:nth-of-type(1) > span:nth-of-type(1),
+#control-frequency-zoom > span:nth-of-type(1) {
+  font-family: 'Geist', sans-serif;
+}
+
+div#root:nth-of-type(1) > div#workspace-root:nth-of-type(1) > main#main-content-stage:nth-of-type(1) > section#visualizer-stage-section:nth-of-type(2) > div#visualizer-outer-wrapper:nth-of-type(1) > div#visualizer-container:nth-of-type(1) > div#visualizer-footer:nth-of-type(4) > div#control-frequency-zoom:nth-of-type(1) > span:nth-of-type(2) > span:nth-of-type(1),
+#control-frequency-zoom > span:nth-of-type(2) > span:nth-of-type(1) {
+  font-family: 'Geist', sans-serif;
+}
+
+div#root:nth-of-type(1) > div#workspace-root:nth-of-type(1) > main#main-content-stage:nth-of-type(1) > section#visualizer-stage-section:nth-of-type(2) > div#visualizer-outer-wrapper:nth-of-type(1) > div#visualizer-container:nth-of-type(1) > div#visualizer-footer:nth-of-type(4) > div#control-frequency-zoom:nth-of-type(1) > span:nth-of-type(2) > span:nth-of-type(2),
+#control-frequency-zoom > span:nth-of-type(2) > span:nth-of-type(2) {
+  font-family: 'Geist', sans-serif;
+  font-size: 10px;
+  color: #ffffff;
+}
+
+/* Loudness & Peak Panels Typography Standardization: Scaled (+2px) High-Contrast White */
+#peak-meters-block,
+#loudness-meters-block,
+#trend-stage,
+#compliance-block,
+#measurement-details-matrix {
+  color: #ffffff;
+}
+
+#peak-dbfs-max-text {
+  font-size: 12px !important;
+  color: #ffffff !important;
+  font-weight: bold;
+}
+
+#peak-meters-block .uppercase,
+#loudness-meters-block .uppercase,
+#trend-stage .uppercase,
+#measurement-details-matrix .uppercase {
+  color: #ffffff !important;
+}
+
+#peak-meters-block span,
+#loudness-meters-block span,
+#lufs-scale-row span {
+  color: #ffffff;
+}
+
+#meter-select-lufs {
+  color: #ffffff !important;
+  font-size: 12px !important;
+}
+
+#meter-select-lufs option,
+#meter-select-lufs optgroup {
+  color: #ffffff !important;
+  background-color: #101010 !important;
+}
+
+
