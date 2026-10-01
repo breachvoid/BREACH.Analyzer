@@ -22,7 +22,9 @@ import {
   Snowflake,
   Activity,
   Layers,
-  Sparkles
+  Sparkles,
+  HelpCircle,
+  X
 } from 'lucide-react';
 import { audioAnalyzer, useStreamMetadata } from '../audioEngine';
 import { AnalyzerConfig } from '../types';
@@ -69,12 +71,13 @@ export function DJWaveformDeck({
   // Playback & Timing State
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
-  const [bpm, setBpm] = useState<number>(106.6);
+  const [bpm, setBpm] = useState<number>(0);
+  const [bpmSource, setBpmSource] = useState<'auto' | 'manual' | 'none'>('none');
   const [isBpmEditing, setIsBpmEditing] = useState<boolean>(false);
-  const [bpmInputVal, setBpmInputVal] = useState<string>('106.60');
-  const [musicalKey, setMusicalKey] = useState<string>('Am');
-  const [camelotKey, setCamelotKey] = useState<string>('8A');
-  const [gridOffset, setGridOffset] = useState<number>(0.12);
+  const [bpmInputVal, setBpmInputVal] = useState<string>('---');
+  const [musicalKey, setMusicalKey] = useState<string>('Unknown');
+  const [camelotKey, setCamelotKey] = useState<string>('—');
+  const [gridOffset, setGridOffset] = useState<number>(0);
   const [isGridLocked, setIsGridLocked] = useState<boolean>(true);
   const [zoomLevel, setZoomLevel] = useState<number>(3.5);
   const [activeTab, setActiveTab] = useState<'MONITOR' | 'GRID_ANALYSIS'>('GRID_ANALYSIS');
@@ -82,6 +85,14 @@ export function DJWaveformDeck({
   const [beatFlash, setBeatFlash] = useState<boolean>(false);
   const [tapTimes, setTapTimes] = useState<number[]>([]);
   const [isTapActive, setIsTapActive] = useState<boolean>(false);
+  const [showDefinitionModal, setShowDefinitionModal] = useState<boolean>(false);
+  const [definitionTab, setDefinitionTab] = useState<'MONITOR' | 'GRID_ANALYSIS'>('MONITOR');
+  const [timeDisplayMode, setTimeDisplayMode] = useState<'elapsed' | 'remaining'>('elapsed');
+
+  // Manual edit locks and race condition tokens
+  const isManualBpmRef = useRef<boolean>(false);
+  const isManualGridRef = useRef<boolean>(false);
+  const decodeRequestIdRef = useRef<number>(0);
 
   // Canvases
   const overviewCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -116,7 +127,11 @@ export function DJWaveformDeck({
   useEffect(() => {
     if (!fileUrl) return;
 
+    isManualBpmRef.current = false;
+    isManualGridRef.current = false;
+    const reqId = ++decodeRequestIdRef.current;
     let isMounted = true;
+
     const decodeTrack = async () => {
       try {
         const audioCtx = audioAnalyzer.getContext() || audioAnalyzer.initContext();
@@ -124,18 +139,23 @@ export function DJWaveformDeck({
         const arrayBuf = await res.arrayBuffer();
         const audioBuf = await audioCtx.decodeAudioData(arrayBuf.slice(0));
 
-        if (!isMounted) return;
+        if (!isMounted || reqId !== decodeRequestIdRef.current) return;
 
         const dur = audioBuf.duration;
         setDuration(dur);
 
-        // Accurately re-analyze BPM and Musical Key on each new loaded song
+        // Accurately analyze BPM and Musical Key on loaded audio
         const bpmAnalysis = detectBpmFromAudio(audioBuf);
         const keyAnalysis = detectKeyFromAudio(audioBuf);
 
-        setBpm(bpmAnalysis.bpm);
-        setBpmInputVal(bpmAnalysis.bpm.toFixed(2));
-        setGridOffset(bpmAnalysis.firstBeatTime);
+        if (!isManualBpmRef.current) {
+          setBpm(bpmAnalysis.bpm);
+          setBpmInputVal(bpmAnalysis.bpm > 0 ? bpmAnalysis.bpm.toFixed(2) : '---');
+          setBpmSource(bpmAnalysis.bpm > 0 ? 'auto' : 'none');
+        }
+        if (!isManualGridRef.current) {
+          setGridOffset(bpmAnalysis.firstBeatTime);
+        }
         setMusicalKey(keyAnalysis.musicalKey);
         setCamelotKey(keyAnalysis.camelot);
 
@@ -240,7 +260,7 @@ export function DJWaveformDeck({
     };
   }, [fileUrl]);
 
-  // Synchronize duration from audio element
+  // Synchronize duration and live seeking from audio element
   useEffect(() => {
     const elem = audioAnalyzer.getAudioElement();
     if (!elem) return;
@@ -251,8 +271,23 @@ export function DJWaveformDeck({
       }
     };
 
+    const onSeekOrUpdate = () => {
+      if (!isNaN(elem.currentTime)) {
+        smoothTimeRef.current = elem.currentTime;
+        setCurrentTime(elem.currentTime);
+        drawOverviewCanvas();
+        drawDetailCanvas();
+      }
+    };
+
     elem.addEventListener('loadedmetadata', onMeta);
-    return () => elem.removeEventListener('loadedmetadata', onMeta);
+    elem.addEventListener('seeked', onSeekOrUpdate);
+    elem.addEventListener('timeupdate', onSeekOrUpdate);
+    return () => {
+      elem.removeEventListener('loadedmetadata', onMeta);
+      elem.removeEventListener('seeked', onSeekOrUpdate);
+      elem.removeEventListener('timeupdate', onSeekOrUpdate);
+    };
   }, []);
 
   // Format Elapsed mm:ss.s
@@ -274,6 +309,7 @@ export function DJWaveformDeck({
 
   // Live Bar & Beat Counter synced to tempo & audio time
   const barCounter = useMemo(() => {
+    if (bpm <= 0) return '---';
     const beatInterval = 60 / Math.max(40, bpm);
     const adjustedTime = Math.max(0, currentTime - gridOffset);
     const totalBeats = adjustedTime / beatInterval;
@@ -300,7 +336,9 @@ export function DJWaveformDeck({
       if (avgInterval > 0) {
         const calculatedBpm = Math.round((60000 / avgInterval) * 100) / 100;
         if (calculatedBpm >= 60 && calculatedBpm <= 220) {
+          isManualBpmRef.current = true;
           setBpm(calculatedBpm);
+          setBpmSource('manual');
           setBpmInputVal(calculatedBpm.toFixed(2));
         }
       }
@@ -310,22 +348,41 @@ export function DJWaveformDeck({
   // Nudge beatgrid left / right
   const handleNudgeGrid = (direction: 'left' | 'right') => {
     const step = 0.005; // 5ms
+    isManualGridRef.current = true;
     setGridOffset(prev => prev + (direction === 'right' ? step : -step));
   };
 
   // Stretch / compress beatgrid
   const handleStretchGrid = (direction: 'compress' | 'expand') => {
     const bpmDelta = direction === 'expand' ? -0.1 : 0.1;
+    isManualBpmRef.current = true;
+    setBpmSource('manual');
     setBpm(prev => {
-      const next = Math.max(50, Math.min(240, Math.round((prev + bpmDelta) * 100) / 100));
+      const base = prev > 0 ? prev : 120;
+      const next = Math.max(50, Math.min(240, Math.round((base + bpmDelta) * 100) / 100));
       setBpmInputVal(next.toFixed(2));
       return next;
     });
   };
+ 
+  // Halve or double the BPM (octave shift)
+  const handleMultiplyBpm = (multiplier: 0.5 | 2.0) => {
+    if (bpm <= 0 || isGridLocked) return;
+    const nextBpm = Math.max(30, Math.min(300, Math.round(bpm * multiplier * 100) / 100));
+    isManualBpmRef.current = true;
+    setBpmSource('manual');
+    setBpm(nextBpm);
+    setBpmInputVal(nextBpm.toFixed(2));
+  };
 
-  // Set downbeat (Beat 1) at current playhead position
+  // Set downbeat (Beat 1) at current playhead position (aligned to 4-beat bar)
   const handleSetDownbeat = () => {
-    setGridOffset(currentTime % (60 / bpm));
+    if (bpm <= 0) return;
+    isManualGridRef.current = true;
+    const interval = 60 / bpm;
+    const barInterval = 4 * interval;
+    const normalizedOffset = ((currentTime % barInterval) + barInterval) % barInterval;
+    setGridOffset(normalizedOffset);
   };
 
   // Reset waveform buffer
@@ -351,8 +408,16 @@ export function DJWaveformDeck({
       lastFrameTimestampRef.current = now;
 
       // Advance smooth playback time continuously at 60 FPS
-      if (isPlaying && !isFrozen) {
-        const elem = audioAnalyzer.getAudioElement();
+      const elem = audioAnalyzer.getAudioElement();
+      if (!isPlaying) {
+        // Paused Seeking: instantly update smoothTime and React currentTime if seeking while paused
+        if (elem && !isNaN(elem.currentTime)) {
+          if (Math.abs(smoothTimeRef.current - elem.currentTime) > 0.001) {
+            smoothTimeRef.current = elem.currentTime;
+            setCurrentTime(elem.currentTime);
+          }
+        }
+      } else if (!isFrozen) {
         if (elem && !elem.paused && !isNaN(elem.currentTime)) {
           const targetTime = elem.currentTime;
           // If seeking or drift > 0.2s, snap smoothly
@@ -497,7 +562,7 @@ export function DJWaveformDeck({
 
     animId = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(animId);
-  }, [isPlaying, isFrozen, duration, bpm, isGridLocked, zoomLevel, config]);
+  }, [isPlaying, isFrozen, duration, bpm, gridOffset, isGridLocked, zoomLevel, config]);
 
   // Color Theme Resolution
   const colors = useMemo(() => {
@@ -609,11 +674,13 @@ export function DJWaveformDeck({
     const startTime = renderTime - visibleDuration / 2;
     const endTime = renderTime + visibleDuration / 2;
 
-    // 1. Draw Beat Grid Lines (Continuously scrolling along with the audio)
-    const firstBeatIdx = Math.floor((startTime - gridOffset) / beatInterval);
-    const lastBeatIdx = Math.ceil((endTime - gridOffset) / beatInterval);
+    // 1. Draw Beat Grid Lines (Continuously scrolling along with the audio if tempo is available)
+    if (bpm > 0) {
+      const beatInterval = 60 / bpm;
+      const firstBeatIdx = Math.floor((startTime - gridOffset) / beatInterval);
+      const lastBeatIdx = Math.ceil((endTime - gridOffset) / beatInterval);
 
-    for (let bi = firstBeatIdx; bi <= lastBeatIdx; bi++) {
+      for (let bi = firstBeatIdx; bi <= lastBeatIdx; bi++) {
       const beatTime = gridOffset + bi * beatInterval;
       if (beatTime < 0) continue;
       if (duration > 0 && beatTime > duration) continue;
@@ -670,6 +737,7 @@ export function DJWaveformDeck({
         ctx.stroke();
       }
     }
+  }
 
     // 2. Draw Multi-Band Waveform Slices Scrolling Past Center Playhead
     // Prefer full pre-decoded track slices if available, else live history buffer
@@ -808,7 +876,10 @@ export function DJWaveformDeck({
     const elem = audioAnalyzer.getAudioElement();
     if (elem) {
       elem.currentTime = targetTime;
+      audioAnalyzer.handleSeek();
     }
+    drawOverviewCanvas();
+    drawDetailCanvas();
   };
 
   // Drag-to-Scrub Horizontally on Main Detail Canvas (Like Scratching / Jog Wheel)
@@ -834,7 +905,10 @@ export function DJWaveformDeck({
       const elem = audioAnalyzer.getAudioElement();
       if (elem) {
         elem.currentTime = nextTime;
+        audioAnalyzer.handleSeek();
       }
+      drawOverviewCanvas();
+      drawDetailCanvas();
     };
 
     const onMouseUp = () => {
@@ -851,9 +925,11 @@ export function DJWaveformDeck({
     e.preventDefault();
     const val = parseFloat(bpmInputVal);
     if (!isNaN(val) && val >= 40 && val <= 240) {
+      isManualBpmRef.current = true;
+      setBpmSource('manual');
       setBpm(Math.round(val * 100) / 100);
     } else {
-      setBpmInputVal(bpm.toFixed(2));
+      setBpmInputVal(bpm > 0 ? bpm.toFixed(2) : '---');
     }
     setIsBpmEditing(false);
   };
@@ -862,8 +938,9 @@ export function DJWaveformDeck({
   const audioFormatBadge = useMemo(() => {
     if (streamMetadata && streamMetadata.sampleRate > 0) {
       const sr = (streamMetadata.sampleRate / 1000).toFixed(1) + ' kHz';
+      const depth = streamMetadata.bitDepth ? `${streamMetadata.bitDepth}-BIT ` : '';
       const codec = streamMetadata.codec ? streamMetadata.codec.toUpperCase() : 'WAV';
-      return `${codec} ${sr}`;
+      return `${depth}${codec} ${sr}`;
     }
     return '44.1 kHz 16-BIT WAV';
   }, [streamMetadata]);
@@ -903,7 +980,7 @@ export function DJWaveformDeck({
                   <span className="font-semibold text-[#B8B8B8]">{isPlaying ? (isFrozen ? 'FROZEN INSPECTION' : 'LIVE 60FPS SCROLLING') : 'STANDBY'}</span>
                 </span>
                 <span>•</span>
-                <span>Bar Grid: {bpm.toFixed(2)} BPM</span>
+                <span>Bar Grid: {bpm > 0 ? bpm.toFixed(2) + ' BPM' : '--- BPM'}</span>
               </div>
             </div>
           </div>
@@ -931,20 +1008,25 @@ export function DJWaveformDeck({
               <span className="text-[10px] uppercase font-sans font-medium text-[#858585] tracking-wider flex items-center gap-1">
                 <span className={`w-1.5 h-1.5 rounded-full transition-all duration-75 ${beatFlash ? 'bg-[#00BFFF] scale-150 shadow-[0_0_8px_#00BFFF]' : 'bg-[#333333]'}`} />
                 TEMPO
+                {bpmSource !== 'none' && (
+                  <span className={`text-[8px] font-sans font-bold px-1 py-0.5 ${bpmSource === 'manual' ? 'bg-[#ff9900]/20 text-[#ff9900]' : 'bg-[#00BFFF]/20 text-[#00BFFF]'}`}>
+                    {bpmSource.toUpperCase()}
+                  </span>
+                )}
               </span>
               <span 
                 className="text-[15px] font-mono font-semibold text-[#F2F2F2] tabular-nums tracking-wide cursor-pointer hover:text-[#00BFFF] transition-colors"
-                title="Click to manually edit BPM"
+                title={`Click to manually edit BPM (${bpmSource === 'manual' ? 'Manual Edit' : bpmSource === 'auto' ? 'Auto-detected' : 'Unavailable'})`}
                 onClick={() => setIsBpmEditing(true)}
               >
-                {bpm.toFixed(2)}
+                {bpm > 0 ? bpm.toFixed(2) : '---'}
               </span>
             </div>
 
             {/* Dynamic Musical Key & Camelot Wheel Indicator */}
             <div className="flex flex-col items-end pl-2 border-l border-[#333333]">
               <span className="text-[10px] uppercase font-sans font-medium text-[#858585] tracking-wider flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#b20000]" />
+                <span className={`w-1.5 h-1.5 rounded-full ${musicalKey === 'Unknown' ? 'bg-[#555555]' : 'bg-[#b20000]'}`} />
                 KEY (CAMELOT)
               </span>
               <div 
@@ -954,7 +1036,7 @@ export function DJWaveformDeck({
                 <span className="text-[14px] font-mono font-semibold text-[#F2F2F2] tracking-tight">
                   {musicalKey}
                 </span>
-                <span className="px-1.5 py-0.5 text-[10px] font-sans font-bold bg-[#b20000] text-[#F2F2F2]">
+                <span className={`px-1.5 py-0.5 text-[10px] font-sans font-bold ${camelotKey === '—' ? 'bg-[#2a2a2a] text-[#858585]' : 'bg-[#b20000] text-[#F2F2F2]'}`}>
                   {camelotKey}
                 </span>
               </div>
@@ -999,52 +1081,96 @@ export function DJWaveformDeck({
 
         {/* Floating Zoom & Timebase Navigation Overlay */}
         <div 
-          className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-[#121212]/85 backdrop-blur-sm border border-[#333333] p-1 rounded-sm z-20 select-none shadow-lg"
+          className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-[#141414]/95 backdrop-blur-sm border border-[#3a3a3a] p-1 rounded-none z-20 select-none shadow-xl"
           id="waveform-canvas-zoom-cluster"
         >
           {/* Zoom In (+) */}
-          <button
-            type="button"
-            onClick={() => setZoomLevel(prev => Math.min(12, prev + 0.5))}
-            className="w-6 h-6 flex items-center justify-center text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] rounded transition-colors cursor-pointer"
-            title="Zoom In Waveform (+)"
-            id="btn-zoom-in-wf"
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </button>
+          <div className="relative group/btn">
+            <button
+              type="button"
+              onClick={() => setZoomLevel(prev => Math.min(12, prev + 0.5))}
+              className="w-6 h-6 flex items-center justify-center bg-[#181818] border border-[#383838] text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] hover:border-[#F2F2F2] active:bg-[#303030] rounded-none transition-[border-color,background-color,color] duration-150 ease-out cursor-pointer"
+              title="Zoom In (+0.5x) - Focus on Micro-Transients"
+              id="btn-zoom-in-wf"
+              aria-label="Zoom In (+0.5x)"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+            <div className="pointer-events-none absolute bottom-full mb-2 left-0 z-30 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-150 ease-out bg-[#121212]/95 border border-[#3a3a3a] px-2 py-1 shadow-2xl whitespace-nowrap text-[10px] font-mono text-[#B8B8B8] uppercase tracking-wider">
+              <span>ZOOM IN (+0.5X) · TRANSIENT DETAIL <span className="text-[#F2F2F2]">[{zoomLevel.toFixed(1)}X / 12.0X]</span></span>
+            </div>
+          </div>
 
           {/* Reset Zoom (RST) */}
-          <button
-            type="button"
-            onClick={() => setZoomLevel(3.5)}
-            className="px-1.5 h-6 text-[10px] font-sans font-medium uppercase tracking-wider text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] rounded transition-colors cursor-pointer flex items-center justify-center"
-            title="Reset Zoom to 3.5x"
-            id="btn-zoom-rst-wf"
-          >
-            RST
-          </button>
+          <div className="relative group/btn">
+            <button
+              type="button"
+              onClick={() => setZoomLevel(3.5)}
+              className="px-2 h-6 flex items-center justify-center bg-[#181818] border border-[#383838] text-[10px] font-mono font-medium uppercase tracking-wider text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] hover:border-[#F2F2F2] active:bg-[#303030] rounded-none transition-[border-color,background-color,color] duration-150 ease-out cursor-pointer"
+              title="Reset Zoom (3.5x) - Calibrated Reference Phrase View"
+              id="btn-zoom-rst-wf"
+              aria-label="Reset Zoom (3.5x)"
+            >
+              RST
+            </button>
+            <div className="pointer-events-none absolute bottom-full mb-2 left-0 z-30 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-150 ease-out bg-[#121212]/95 border border-[#3a3a3a] px-2 py-1 shadow-2xl whitespace-nowrap text-[10px] font-mono text-[#B8B8B8] uppercase tracking-wider">
+              <span>RESET ZOOM <span className="text-[#F2F2F2]">[3.5X]</span> · REFERENCE PHRASE VIEW</span>
+            </div>
+          </div>
 
           {/* Zoom Out (-) */}
-          <button
-            type="button"
-            onClick={() => setZoomLevel(prev => Math.max(1, prev - 0.5))}
-            className="w-6 h-6 flex items-center justify-center text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] rounded transition-colors cursor-pointer"
-            title="Zoom Out Waveform (-)"
-            id="btn-zoom-out-wf"
-          >
-            <Minus className="w-3.5 h-3.5" />
-          </button>
+          <div className="relative group/btn">
+            <button
+              type="button"
+              onClick={() => setZoomLevel(prev => Math.max(1, prev - 0.5))}
+              className="w-6 h-6 flex items-center justify-center bg-[#181818] border border-[#383838] text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] hover:border-[#F2F2F2] active:bg-[#303030] rounded-none transition-[border-color,background-color,color] duration-150 ease-out cursor-pointer"
+              title="Zoom Out (-0.5x) - Broader Arrangement Context"
+              id="btn-zoom-out-wf"
+              aria-label="Zoom Out (-0.5x)"
+            >
+              <Minus className="w-3.5 h-3.5" />
+            </button>
+            <div className="pointer-events-none absolute bottom-full mb-2 left-0 z-30 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-150 ease-out bg-[#121212]/95 border border-[#3a3a3a] px-2 py-1 shadow-2xl whitespace-nowrap text-[10px] font-mono text-[#B8B8B8] uppercase tracking-wider">
+              <span>ZOOM OUT (-0.5X) · MACRO OVERVIEW <span className="text-[#F2F2F2]">[{zoomLevel.toFixed(1)}X / 1.0X]</span></span>
+            </div>
+          </div>
+
+          {/* Subtle Vertical Divider */}
+          <div className="h-4 w-[1px] bg-[#383838] mx-0.5" />
 
           {/* Nudge Left */}
-          <button
-            type="button"
-            onClick={() => handleNudgeGrid('left')}
-            className="w-6 h-6 flex items-center justify-center text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] rounded transition-colors cursor-pointer border-l border-[#333333] pl-1 ml-0.5"
-            title="Nudge Beatgrid Left"
-            id="btn-nudge-left-wf"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-          </button>
+          <div className="relative group/btn">
+            <button
+              type="button"
+              onClick={() => handleNudgeGrid('left')}
+              className="w-6 h-6 flex items-center justify-center bg-[#181818] border border-[#383838] text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] hover:border-[#F2F2F2] active:bg-[#303030] rounded-none transition-[border-color,background-color,color] duration-150 ease-out cursor-pointer"
+              title="Nudge Beatgrid Left (-5ms)"
+              id="btn-nudge-left-wf"
+              aria-label="Nudge Beatgrid Left (-5ms)"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <div className="pointer-events-none absolute bottom-full mb-2 left-0 z-30 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-150 ease-out bg-[#121212]/95 border border-[#3a3a3a] px-2 py-1 shadow-2xl whitespace-nowrap text-[10px] font-mono text-[#B8B8B8] uppercase tracking-wider">
+              <span>NUDGE GRID <span className="text-[#F2F2F2]">[-5MS]</span> · RETARD TO EARLIER BEAT</span>
+            </div>
+          </div>
+
+          {/* Nudge Right */}
+          <div className="relative group/btn">
+            <button
+              type="button"
+              onClick={() => handleNudgeGrid('right')}
+              className="w-6 h-6 flex items-center justify-center bg-[#181818] border border-[#383838] text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] hover:border-[#F2F2F2] active:bg-[#303030] rounded-none transition-[border-color,background-color,color] duration-150 ease-out cursor-pointer"
+              title="Nudge Beatgrid Right (+5ms)"
+              id="btn-nudge-right-wf"
+              aria-label="Nudge Beatgrid Right (+5ms)"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+            <div className="pointer-events-none absolute bottom-full mb-2 right-0 z-30 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-150 ease-out bg-[#121212]/95 border border-[#3a3a3a] px-2 py-1 shadow-2xl whitespace-nowrap text-[10px] font-mono text-[#B8B8B8] uppercase tracking-wider">
+              <span>NUDGE GRID <span className="text-[#F2F2F2]">[+5MS]</span> · ADVANCE TO LATER BEAT</span>
+            </div>
+          </div>
         </div>
 
         {/* Legend Overlay at Top Right of Canvas */}
@@ -1123,9 +1249,11 @@ export function DJWaveformDeck({
                   onBlur={() => {
                     const val = parseFloat(bpmInputVal);
                     if (!isNaN(val) && val >= 40 && val <= 240) {
+                      isManualBpmRef.current = true;
+                      setBpmSource('manual');
                       setBpm(Math.round(val * 100) / 100);
                     } else {
-                      setBpmInputVal(bpm.toFixed(2));
+                      setBpmInputVal(bpm > 0 ? bpm.toFixed(2) : '---');
                     }
                     setIsBpmEditing(false);
                   }}
@@ -1141,7 +1269,7 @@ export function DJWaveformDeck({
                 }`}
                 title="Click to edit grid tempo manually"
               >
-                {bpm.toFixed(2)} BPM
+                {bpm > 0 ? bpm.toFixed(2) + ' BPM' : '--- BPM'}
               </div>
             )}
 

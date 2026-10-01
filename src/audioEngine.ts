@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { AudioSourceType, GeneratorSignalType, LoudnessMetrics } from './types';
 import { AudioFileRegistry, fetchPartialArrayBuffer, getAudioFileSize } from './utils';
+import { parseAudioMetadata } from './utils/audioMetadata';
 
 export class AudioAnalyzerEngine {
   private audioContext: AudioContext | null = null;
@@ -27,6 +28,7 @@ export class AudioAnalyzerEngine {
   private screenStream: MediaStream | null = null;
   private audioElement: HTMLAudioElement | null = null;
   private mediaNodesCache = new WeakMap<HTMLAudioElement, MediaElementAudioSourceNode>();
+  private loadRequestId: number = 0;
   
   // Custom synth nodes (ambient drone)
   private synthNodes: {
@@ -77,7 +79,9 @@ export class AudioAnalyzerEngine {
     codec: 'Synth Signal',
     channelCount: 2 as number | undefined,
     trackChannelCount: undefined as number | undefined,
-    splitterInputChannelCount: undefined as number | undefined
+    splitterInputChannelCount: undefined as number | undefined,
+    bitDepth: undefined as number | undefined,
+    isVBR: false as boolean | undefined
   };
   private metadataListeners: ((meta: typeof this.activeMetadata) => void)[] = [];
 
@@ -249,12 +253,51 @@ export class AudioAnalyzerEngine {
   }
 
   /**
+   * Pause playback without destroying the audio pipeline or resetting accumulated metrics
+   */
+  public pause() {
+    if (this.audioElement) {
+      this.audioElement.pause();
+    }
+    this.sourceActive = false;
+    this.notifyState();
+  }
+
+  /**
+   * Handles user seeking: flushes sliding-window buffers to prevent splice transients
+   * and resets continuous measurement accumulation to prevent mixing disjoint audio segments.
+   */
+  public handleSeek() {
+    this.momentaryHistory = [];
+    this.shortTermHistory = [];
+    this.gatingBlocks = [];
+    if (this.loudnessAnalyser) {
+      this.loudnessAnalyser.port.postMessage({ type: 'SEEK' });
+    }
+  }
+
+  /**
    * Start a specified source stream
    */
   public async startSource(sourceType: AudioSourceType, options?: { element?: HTMLAudioElement; generatorType?: GeneratorSignalType; freq?: number; deviceId?: string }) {
     this.initContext();
     if (this.audioContext!.state === 'suspended') {
       await this.audioContext!.resume();
+    }
+
+    // If resuming playback on the already active audio element with a healthy pipeline,
+    // preserve the AudioWorklet and accumulated ITU-R BS.1770 / EBU R128 metrics!
+    if (
+      sourceType === AudioSourceType.AUDIO_FILE &&
+      options?.element &&
+      this.currentSourceType === AudioSourceType.AUDIO_FILE &&
+      this.audioElement === options.element &&
+      this.sourceNode &&
+      this.loudnessAnalyser
+    ) {
+      this.sourceActive = true;
+      this.notifyState();
+      return;
     }
 
     // Stop current active nodes
@@ -501,7 +544,36 @@ class LoudnessProcessor extends AudioWorkletProcessor {
     this.resetMetrics();
     this.port.onmessage = event => {
       if (event.data.type === 'RESET') this.resetMetrics();
+      if (event.data.type === 'SEEK') this.handleSeek();
     };
+  }
+
+  handleSeek() {
+    this.powerRing.fill(0);
+    this.position = 0;
+    this.samples = 0;
+    this.samplesSinceMessage = 0;
+    this.mSum = 0;
+    this.sSum = 0;
+    this.maxM = 0;
+    this.maxS = 0;
+    this.sLL = 0;
+    this.sRR = 0;
+    this.sLR = 0;
+    for (let c = 0; c < this.channels.length; c++) {
+      this.channels[c].shelf.fill(0);
+      this.channels[c].hp.fill(0);
+      this.channels[c].history.fill(0);
+      this.channels[c].position = 0;
+      this.channels[c].squareSum = 0;
+      this.channels[c].framePeak = 0;
+    }
+    this.gateCounts.fill(0);
+    this.gatePowers.fill(0);
+    this.lraCounts.fill(0);
+    this.lraPowers.fill(0);
+    this.integrated = -120;
+    this.lra = 0;
   }
 
   resetMetrics() {
@@ -834,6 +906,9 @@ registerProcessor('loudness-processor', LoudnessProcessor);
     this.sourceNode.connect(this.preAnalysisGain!);
     this.connectOutput();
 
+    // Reset accumulated metrics for a new source/track change
+    this.resetMetrics();
+
     // Initial estimation properties
     let estSampleRate = 44100;
     let estBitrate = 320;
@@ -868,38 +943,40 @@ registerProcessor('loudness-processor', LoudnessProcessor);
     });
 
     if (currentUrl) {
+      const reqId = ++this.loadRequestId;
       const fetchAndDecode = async () => {
         try {
           const arrayBuffer = await fetchPartialArrayBuffer(currentUrl, 3 * 1024 * 1024);
-          // Decode the 3MB portion directly
-          const decodedBuffer = await ctx.decodeAudioData(arrayBuffer);
-          const actualSampleRate = decodedBuffer.sampleRate;
-          const duration = elem.duration || decodedBuffer.duration || 1;
+          if (reqId !== this.loadRequestId) return;
 
-          const fileSize = await getAudioFileSize(currentUrl, AudioFileRegistry.get(currentUrl));
-          const actualBitrate = Math.round((fileSize * 8 / duration) / 1000);
-
-          let actualCodec = estCodec;
           const registeredFile = AudioFileRegistry.get(currentUrl);
-          const blobType = registeredFile ? registeredFile.type : '';
-          if (blobType.includes('mpeg') || blobType.includes('mp3')) {
-            actualCodec = 'MPEG Layer-3 (MP3)';
-          } else if (blobType.includes('wav') || blobType.includes('wave')) {
-            actualCodec = 'Linear PCM (WAV)';
-          } else if (blobType.includes('ogg')) {
-            actualCodec = 'Ogg Vorbis (OGG)';
-          } else if (blobType.includes('flac')) {
-            actualCodec = 'FLAC Audio (Lossless)';
-          } else if (blobType.includes('aac') || blobType.includes('m4a') || blobType.includes('mp4')) {
-            actualCodec = 'AAC Audio (M4A)';
-          }
+          const fileSize = await getAudioFileSize(currentUrl, registeredFile);
+          const duration = elem.duration || 1;
+
+          // Parse native file metadata directly from binary header
+          const parsed = parseAudioMetadata(arrayBuffer, fileSize, duration, estCodec);
+          if (reqId !== this.loadRequestId) return;
+
+          // Decode small portion to inspect decoded channels if needed
+          let channelCount = parsed.channels;
+          try {
+            const decodedBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+            if (reqId !== this.loadRequestId) return;
+            if (decodedBuffer && decodedBuffer.numberOfChannels) {
+              channelCount = decodedBuffer.numberOfChannels;
+            }
+          } catch (e) {}
+
+          if (reqId !== this.loadRequestId) return;
 
           this.updateMetadata({
-            sampleRate: actualSampleRate,
-            bitrate: actualBitrate > 0 ? actualBitrate : estBitrate,
-            codec: actualCodec,
+            sampleRate: parsed.sampleRate,
+            bitrate: parsed.bitrate,
+            codec: parsed.codec,
+            bitDepth: parsed.bitDepth,
+            isVBR: parsed.isVBR,
             bufferSize: this.bufSize,
-            trackChannelCount: decodedBuffer.numberOfChannels,
+            trackChannelCount: channelCount,
             splitterInputChannelCount: this.preAnalysisGain?.channelCount ?? 2
           });
         } catch (err) {

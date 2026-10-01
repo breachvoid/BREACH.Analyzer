@@ -183,8 +183,8 @@ interface AnalyserCanvasProps {
 }
 
 interface WaveformOscilloscopeDeckHeaderProps {
-  secondaryMode: 'split' | 'waveform' | 'oscilloscope';
-  setSecondaryMode: (mode: 'split' | 'waveform' | 'oscilloscope') => void;
+  secondaryMode: 'split' | 'spectrogram' | 'oscilloscope' | 'waveform';
+  setSecondaryMode: (mode: 'split' | 'spectrogram' | 'oscilloscope') => void;
   isDeckFrozen: boolean;
   onToggleFreeze: () => void;
   oscTimebase: number;
@@ -224,7 +224,7 @@ const WaveformOscilloscopeDeckHeader: React.FC<WaveformOscilloscopeDeckHeaderPro
             <Waves className="w-4 h-4 text-[#b20000]" />
           </div>
           <h2 className="text-xs font-semibold tracking-[1.4px] text-[#F2F2F2] font-sans uppercase">
-            Waveform / Oscilloscope Deck
+            Spectrogram / Oscilloscope Deck
           </h2>
         </div>
 
@@ -237,13 +237,13 @@ const WaveformOscilloscopeDeckHeader: React.FC<WaveformOscilloscopeDeckHeaderPro
           <span className="text-[#B8B8B8] pl-1 text-[11px] font-sans font-medium uppercase tracking-[1px]">Mode:</span>
           <select
             id="select-deck2-mode-dropdown"
-            value={secondaryMode}
-            onChange={(e) => setSecondaryMode(e.target.value as 'split' | 'waveform' | 'oscilloscope')}
+            value={secondaryMode === 'waveform' ? 'spectrogram' : secondaryMode}
+            onChange={(e) => setSecondaryMode(e.target.value as 'split' | 'spectrogram' | 'oscilloscope')}
             className="bg-transparent border-0 text-[#F2F2F2] focus:outline-none cursor-pointer font-sans text-[11px] font-medium uppercase tracking-[1px] pr-1"
           >
-            <option value="waveform" className="bg-[#181818]">Waveform</option>
-            <option value="split" className="bg-[#181818]">Split</option>
+            <option value="spectrogram" className="bg-[#181818]">Spectrogram</option>
             <option value="oscilloscope" className="bg-[#181818]">Oscilloscope</option>
+            <option value="split" className="bg-[#181818]">Split (Spectrogram / Osc)</option>
           </select>
         </div>
 
@@ -409,10 +409,10 @@ export function AnalyserCanvas({
   onlyRenderSplit = false,
   hideSplitWaterfall = false
 }: AnalyserCanvasProps) {
-  const [secondaryMode, setSecondaryMode] = usePersistentState<'split' | 'waveform' | 'oscilloscope'>(
+  const [secondaryMode, setSecondaryMode] = usePersistentState<'split' | 'spectrogram' | 'oscilloscope' | 'waveform'>(
     'breach_secondary_deck_mode',
-    'waveform',
-    (val) => val === 'split' || val === 'waveform' || val === 'oscilloscope'
+    'spectrogram',
+    (val) => val === 'split' || val === 'spectrogram' || val === 'oscilloscope' || val === 'waveform'
   );
 
   // Oscilloscope Trigger Threshold state (-90% to +90%, 0 = center zero-crossing)
@@ -991,7 +991,7 @@ export function AnalyserCanvas({
     });
   };
 
-  // Listen to container sizes dynamically (ResizeObserver) to avoid canvas distortion
+  // Listen to container sizes dynamically (ResizeObserver) and recalculate aspect ratio and padding on visualizer mode toggle
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -999,26 +999,31 @@ export function AnalyserCanvas({
     const wrapper = canvas.parentElement;
     if (!wrapper) return;
 
-    const observer = new ResizeObserver((entries) => {
-      requestAnimationFrame(() => {
-        if (!canvas) return;
-        for (let entry of entries) {
-          let { width, height } = entry.contentRect;
-          width = Math.floor(width) || 800;
-          height = Math.floor(height) || 300;
+    const recalculateCanvasDimensions = () => {
+      if (!canvas || !wrapper) return;
+      const rect = wrapper.getBoundingClientRect();
+      const width = Math.floor(rect.width) || 800;
+      const height = Math.floor(rect.height) || 300;
 
-          if (canvas.width !== width || canvas.height !== height) {
-            canvas.width = width;
-            canvas.height = height;
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
 
-            if (peakHoldArrayRef.current.length !== width) {
-              peakHoldArrayRef.current = new Array(width).fill(-120);
-            }
-            if (peakHoldTimeArrayRef.current.length !== width) {
-              peakHoldTimeArrayRef.current = new Array(width).fill(0);
-            }
-          }
+        if (peakHoldArrayRef.current.length !== width) {
+          peakHoldArrayRef.current = new Array(width).fill(-120);
         }
+        if (peakHoldTimeArrayRef.current.length !== width) {
+          peakHoldTimeArrayRef.current = new Array(width).fill(0);
+        }
+      }
+    };
+
+    // Immediately recalculate on mode or scale toggle
+    recalculateCanvasDimensions();
+
+    const observer = new ResizeObserver(() => {
+      requestAnimationFrame(() => {
+        recalculateCanvasDimensions();
       });
     });
 
@@ -1027,7 +1032,7 @@ export function AnalyserCanvas({
     return () => {
       observer.disconnect();
     };
-  }, [canvasRef]);
+  }, [canvasRef, config.visualizerMode, config.frequencyScale, primaryHeight]);
 
   // Observe the inline waterfall container size dynamically if active
   useEffect(() => {
@@ -1142,9 +1147,6 @@ export function AnalyserCanvas({
           ctx.fillRect(0, 0, width, height);
 
           let topMode = config.visualizerMode;
-          if (splitWaterfall && (topMode === VisualizerMode.SPECTROGRAM || topMode === VisualizerMode.HEATMAP)) {
-            topMode = VisualizerMode.SPECTRUM_CURVE;
-          }
 
           // Draw Grid on Deck 1 if enabled
           if (deck1ShowGrid) {
@@ -1179,12 +1181,15 @@ export function AnalyserCanvas({
               const pausedTime = (isDeckFrozenRef.current && frozenTimeDataRef.current)
                 ? frozenTimeDataRef.current
                 : (byteTimeArrayRef.current || new Uint8Array(2048).fill(128));
+              const pausedFreq = floatFreqArrayRef.current || new Float32Array(2048).fill(-120);
               renderWaveformScopeDeck(
                 wCtx,
                 wWidth,
                 wHeight,
                 pausedTime,
+                pausedFreq,
                 pausedTime.length,
+                audioAnalyzer.getContext()?.sampleRate || 48000,
                 palette,
                 deck2ShowGrid,
                 secondaryMode,
@@ -1316,11 +1321,8 @@ export function AnalyserCanvas({
         hist.size = Math.min(hist.size + 1, hist.maxSize);
       }
 
-      // Determine top canvas mode (falls back to Curve if split is on but mode is set to dedicated Waterfall)
+      // Determine top canvas mode
       let topMode = config.visualizerMode;
-      if (splitWaterfall && (topMode === VisualizerMode.SPECTROGRAM || topMode === VisualizerMode.HEATMAP)) {
-        topMode = VisualizerMode.SPECTRUM_CURVE;
-      }
 
       // Save current frame to high-performance curve circular buffer
       if (topMode === VisualizerMode.SPECTRUM_CURVE && isPlaying && freqData) {
@@ -1431,7 +1433,9 @@ export function AnalyserCanvas({
               wWidth,
               wHeight,
               dataToRender,
+              freqData,
               totalBins,
+              sampleRate,
               palette,
               deck2ShowGrid,
               secondaryMode,
@@ -1464,17 +1468,18 @@ export function AnalyserCanvas({
       showInnerGrid: boolean = true
     ) => {
       const scaleLog = config.frequencyScale === FrequencyScale.LOGARITHMIC;
+      const isSpectrogram = config.visualizerMode === VisualizerMode.SPECTROGRAM;
       const plotLeft = 48;
       const plotRightMargin = 14;
       const plotBottom = 22;
       const plotWidth = Math.max(10, width - plotLeft - plotRightMargin);
       const plotHeight = Math.max(10, height - plotBottom);
 
-      // 1. Dedicated vertical dB scale gutter background for 100% legibility
+      // 1. Dedicated vertical scale gutter background for 100% legibility
       ctx.fillStyle = '#0a0a0a';
       ctx.fillRect(0, 0, plotLeft, plotHeight);
 
-      // 2. Vertical axis dividing line separating dB scale gutter from frequency plot
+      // 2. Vertical axis dividing line separating gutter from frequency plot
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -1489,72 +1494,121 @@ export function AnalyserCanvas({
       ctx.lineTo(plotLeft + plotWidth, plotHeight);
       ctx.stroke();
 
-      // 4. Vertical dB Scale Header Tag: "dB" in distinctive red
-      ctx.fillStyle = '#b20000';
-      ctx.font = '600 10px "Geist Mono", monospace';
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'top';
-      ctx.fillText('dB', plotLeft - 7, 4);
-
-      // 5. Decibel Intervals & Horizontal Grid Lines
-      let dbGridIntervals = [0, -6, -12, -18, -24, -30, -36, -42, -48, -54, -60, -72, -84, -96, -108, -120];
-      if (plotHeight < 190) {
-        dbGridIntervals = [0, -6, -12, -24, -36, -48, -60, -84, -120];
-      }
-      if (plotHeight < 115) {
-        dbGridIntervals = [0, -12, -24, -48, -72, -120];
-      }
-
-      dbGridIntervals.forEach((db) => {
-        const ratioY = 1 - ((db - config.minDecibels) / (config.maxDecibels - config.minDecibels));
-        let y = ratioY * plotHeight;
-        if (y < 0 || y > plotHeight) return;
-
-        if (db === config.maxDecibels) y = 1.5;
-        if (db === config.minDecibels) y = plotHeight - 1.5;
-
-        // Horizontal dashed grid line across the spectrum plot area
-        if (showInnerGrid) {
-          ctx.strokeStyle = palette.gridColor || 'rgba(255, 255, 255, 0.08)';
-          ctx.beginPath();
-          ctx.setLineDash([1, 5]);
-          ctx.moveTo(plotLeft, y);
-          ctx.lineTo(plotLeft + plotWidth, y);
-          ctx.stroke();
-          ctx.setLineDash([]);
-        }
-
-        // Left tick mark on vertical dB axis
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
-        ctx.beginPath();
-        ctx.moveTo(plotLeft - 4, y);
-        ctx.lineTo(plotLeft, y);
-        ctx.stroke();
-
-        // Right tick mark
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.20)';
-        ctx.beginPath();
-        ctx.moveTo(plotLeft + plotWidth, y);
-        ctx.lineTo(plotLeft + plotWidth + 3, y);
-        ctx.stroke();
-
-        // High-contrast vertical decibel value text label (unclipped with 7px margin from axis)
-        if (db === 0) {
-          ctx.fillStyle = '#FF3333'; // Red for 0 dB ceiling
-        } else if (db >= -6) {
-          ctx.fillStyle = '#F59E0B'; // Amber for -6 dB
-        } else if (db >= -36) {
-          ctx.fillStyle = '#F2F2F2'; // Crisp white for active audio range
-        } else {
-          ctx.fillStyle = '#B8B8B8'; // Secondary silver for lower range
-        }
-
+      if (isSpectrogram) {
+        // Vertical Time Scale Header Tag: "SEC"
+        ctx.fillStyle = '#b20000';
         ctx.font = '600 10px "Geist Mono", monospace';
         ctx.textAlign = 'right';
-        ctx.textBaseline = 'middle';
-        const dbStr = db === 0 ? '0' : `${db}`;
-        ctx.fillText(dbStr, plotLeft - 7, y);
-      });
+        ctx.textBaseline = 'top';
+        ctx.fillText('SEC', plotLeft - 7, 4);
+
+        // Time intervals: Live (NOW) at top, historical seconds rolling down
+        const pxPerSec = 90;
+        const totalSec = Math.floor(plotHeight / pxPerSec);
+        const secStep = totalSec > 5 ? 2 : 1;
+        for (let s = 0; s <= totalSec; s += secStep) {
+          const y = Math.round(s * pxPerSec);
+          if (y >= plotHeight) break;
+
+          if (showInnerGrid && s > 0) {
+            ctx.strokeStyle = palette.gridColor || 'rgba(255, 255, 255, 0.08)';
+            ctx.setLineDash([1, 5]);
+            ctx.beginPath();
+            ctx.moveTo(plotLeft, y);
+            ctx.lineTo(plotLeft + plotWidth, y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+
+          // Left tick mark on vertical axis
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+          ctx.beginPath();
+          ctx.moveTo(plotLeft - 4, y);
+          ctx.lineTo(plotLeft, y);
+          ctx.stroke();
+
+          // Right tick mark
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.20)';
+          ctx.beginPath();
+          ctx.moveTo(plotLeft + plotWidth, y);
+          ctx.lineTo(plotLeft + plotWidth + 3, y);
+          ctx.stroke();
+
+          ctx.fillStyle = s === 0 ? '#F2F2F2' : '#B8B8B8';
+          ctx.font = '600 10px "Geist Mono", monospace';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'middle';
+          const label = s === 0 ? 'NOW' : `-${s}s`;
+          ctx.fillText(label, plotLeft - 7, y === 0 ? 14 : y);
+        }
+      } else {
+        // 4. Vertical dB Scale Header Tag: "dB" in distinctive red
+        ctx.fillStyle = '#b20000';
+        ctx.font = '600 10px "Geist Mono", monospace';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'top';
+        ctx.fillText('dB', plotLeft - 7, 4);
+
+        // 5. Decibel Intervals & Horizontal Grid Lines
+        let dbGridIntervals = [0, -6, -12, -18, -24, -30, -36, -42, -48, -54, -60, -72, -84, -96, -108, -120];
+        if (plotHeight < 190) {
+          dbGridIntervals = [0, -6, -12, -24, -36, -48, -60, -84, -120];
+        }
+        if (plotHeight < 115) {
+          dbGridIntervals = [0, -12, -24, -48, -72, -120];
+        }
+
+        dbGridIntervals.forEach((db) => {
+          const ratioY = 1 - ((db - config.minDecibels) / (config.maxDecibels - config.minDecibels));
+          let y = ratioY * plotHeight;
+          if (y < 0 || y > plotHeight) return;
+
+          if (db === config.maxDecibels) y = 1.5;
+          if (db === config.minDecibels) y = plotHeight - 1.5;
+
+          // Horizontal dashed grid line across the spectrum plot area
+          if (showInnerGrid) {
+            ctx.strokeStyle = palette.gridColor || 'rgba(255, 255, 255, 0.08)';
+            ctx.beginPath();
+            ctx.setLineDash([1, 5]);
+            ctx.moveTo(plotLeft, y);
+            ctx.lineTo(plotLeft + plotWidth, y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+
+          // Left tick mark on vertical dB axis
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+          ctx.beginPath();
+          ctx.moveTo(plotLeft - 4, y);
+          ctx.lineTo(plotLeft, y);
+          ctx.stroke();
+
+          // Right tick mark
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.20)';
+          ctx.beginPath();
+          ctx.moveTo(plotLeft + plotWidth, y);
+          ctx.lineTo(plotLeft + plotWidth + 3, y);
+          ctx.stroke();
+
+          // High-contrast vertical decibel value text label (unclipped with 7px margin from axis)
+          if (db === 0) {
+            ctx.fillStyle = '#FF3333'; // Red for 0 dB ceiling
+          } else if (db >= -6) {
+            ctx.fillStyle = '#F59E0B'; // Amber for -6 dB
+          } else if (db >= -36) {
+            ctx.fillStyle = '#F2F2F2'; // Crisp white for active audio range
+          } else {
+            ctx.fillStyle = '#B8B8B8'; // Secondary silver for lower range
+          }
+
+          ctx.font = '600 10px "Geist Mono", monospace';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'middle';
+          const dbStr = db === 0 ? '0' : `${db}`;
+          ctx.fillText(dbStr, plotLeft - 7, y);
+        });
+      }
 
       // 6. Frequency Grid (Vertical lines + labels along bottom margin)
       const BASE_FREQ_LOG_GRID = [20, 30, 40, 50, 70, 100, 150, 200, 300, 400, 500, 700, 1000, 1500, 2000, 3000, 4000, 5000, 7000, 10000, 15000, 20000];
@@ -2613,15 +2667,21 @@ export function AnalyserCanvas({
       offscreenRef: React.MutableRefObject<HTMLCanvasElement | null>,
       gridEnabled: boolean
     ) => {
-      // Instantiate offscreen scrolling buffer if missing
+      const plotLeft = 48;
+      const plotRightMargin = 14;
+      const plotBottom = 22;
+      const plotWidth = Math.max(10, width - plotLeft - plotRightMargin);
+      const plotHeight = Math.max(10, height - plotBottom);
+
+      // Instantiate offscreen scrolling buffer matching plot dimensions
       if (!offscreenRef.current) {
         offscreenRef.current = document.createElement('canvas');
-        offscreenRef.current.width = width;
-        offscreenRef.current.height = height;
+        offscreenRef.current.width = plotWidth;
+        offscreenRef.current.height = plotHeight;
         const offCtx = offscreenRef.current.getContext('2d');
         if (offCtx) {
           offCtx.fillStyle = palette.bgDark;
-          offCtx.fillRect(0, 0, width, height);
+          offCtx.fillRect(0, 0, plotWidth, plotHeight);
         }
       }
 
@@ -2630,33 +2690,33 @@ export function AnalyserCanvas({
       if (!sCtx) return;
 
       // Ensure offscreen fits window resize sizes
-      if (sCanvas.width !== width || sCanvas.height !== height) {
+      if (sCanvas.width !== plotWidth || sCanvas.height !== plotHeight) {
         if (sCanvas.width > 0 && sCanvas.height > 0) {
           try {
             const backupData = sCtx.getImageData(0, 0, sCanvas.width, sCanvas.height);
-            sCanvas.width = width;
-            sCanvas.height = height;
+            sCanvas.width = plotWidth;
+            sCanvas.height = plotHeight;
             sCtx.fillStyle = palette.bgDark;
-            sCtx.fillRect(0, 0, width, height);
+            sCtx.fillRect(0, 0, plotWidth, plotHeight);
             // Paint back
             sCtx.putImageData(backupData, 0, 0);
           } catch (e) {
-            sCanvas.width = width;
-            sCanvas.height = height;
+            sCanvas.width = plotWidth;
+            sCanvas.height = plotHeight;
             sCtx.fillStyle = palette.bgDark;
-            sCtx.fillRect(0, 0, width, height);
+            sCtx.fillRect(0, 0, plotWidth, plotHeight);
           }
         } else {
-          sCanvas.width = width;
-          sCanvas.height = height;
+          sCanvas.width = plotWidth;
+          sCanvas.height = plotHeight;
           sCtx.fillStyle = palette.bgDark;
-          sCtx.fillRect(0, 0, width, height);
+          sCtx.fillRect(0, 0, plotWidth, plotHeight);
         }
       }
 
-      // 1. Shift offscreen canvas contents DOWNwards by waterfallSpeed pixels
+      // 1. Shift offscreen canvas contents DOWNwards by scrollSpeed pixels
       const scrollSpeed = 1.5;
-      sCtx.drawImage(sCanvas, 0, 0, width, height - scrollSpeed, 0, scrollSpeed, width, height - scrollSpeed);
+      sCtx.drawImage(sCanvas, 0, 0, plotWidth, plotHeight - scrollSpeed, 0, scrollSpeed, plotWidth, plotHeight - scrollSpeed);
 
       // 2. Draw newly generated 1-pixel row representing the current FFT frames
       const isLog = config.frequencyScale === FrequencyScale.LOGARITHMIC;
@@ -2665,18 +2725,18 @@ export function AnalyserCanvas({
       const minDB = config.minDecibels;
       const maxDB = config.maxDecibels;
 
-      for (let x = 0; x < width; x++) {
-        const ratioX = x / width;
+      for (let x = 0; x < plotWidth; x++) {
+        const ratioX = x / plotWidth;
         let freq = 0;
         let nextFreq = 0;
         if (isLog) {
           const logVal = logMin + ratioX * (logMax - logMin);
           freq = Math.pow(10, logVal);
-          const logValNext = logMin + ((x + 1) / width) * (logMax - logMin);
+          const logValNext = logMin + ((x + 1) / plotWidth) * (logMax - logMin);
           nextFreq = Math.pow(10, logValNext);
         } else {
           freq = zoomMin + ratioX * (zoomMax - zoomMin);
-          nextFreq = zoomMin + ((x + 1) / width) * (zoomMax - zoomMin);
+          nextFreq = zoomMin + ((x + 1) / plotWidth) * (zoomMax - zoomMin);
         }
 
         const db = getInterpolatedDbForFreq(freq, nextFreq, freqData, totalBins, sampleRate);
@@ -2689,8 +2749,8 @@ export function AnalyserCanvas({
         sCtx.fillRect(x, 0, 1, Math.max(1, scrollSpeed));
       }
 
-      // 3. Blit the offscreen buffer directly onto screen
-      ctx.drawImage(sCanvas, 0, 0);
+      // 3. Blit the offscreen buffer directly onto main canvas inside the plot bounds at (plotLeft, 0)
+      ctx.drawImage(sCanvas, plotLeft, 0);
 
       // 4. Draw overlays of Gridlines (In subtle transparency on top of scroll)
       if (gridEnabled) {
@@ -3275,14 +3335,15 @@ export function AnalyserCanvas({
                     const selectedMode = e.target.value as VisualizerMode;
                     setConfig(prev => ({
                       ...prev,
-                      visualizerMode: selectedMode,
-                      splitWaterfall: true
+                      visualizerMode: selectedMode
                     }));
                   }}
                   className="bg-transparent border-0 text-[#F2F2F2] focus:outline-none cursor-pointer font-sans text-[11px] font-medium uppercase tracking-[1px] pr-1"
                 >
                   <option value={VisualizerMode.SPECTRUM_BARS} className="bg-[#181818]">Vertical Bars</option>
                   <option value={VisualizerMode.SPECTRUM_CURVE} className="bg-[#181818]">Curve</option>
+                  <option value={VisualizerMode.SPECTROGRAM} className="bg-[#181818]">Spectrogram</option>
+                  <option value={VisualizerMode.WAVEFORM} className="bg-[#181818]">Waveform (Oscilloscope)</option>
                 </select>
               </div>
 

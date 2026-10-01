@@ -356,6 +356,8 @@ export const VisualSettingsPanel: React.FC<VisualSettingsPanelProps> = ({
             >
               <option value={VisualizerMode.SPECTRUM_BARS}>Vertical Bars</option>
               <option value={VisualizerMode.SPECTRUM_CURVE}>Smooth Curve</option>
+              <option value={VisualizerMode.SPECTROGRAM}>Spectrogram</option>
+              <option value={VisualizerMode.WAVEFORM}>Waveform (Oscilloscope)</option>
             </select>
           </div>
 

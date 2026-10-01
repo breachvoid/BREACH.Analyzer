@@ -8,9 +8,9 @@ function readWav(file){const b=fs.readFileSync(file);let fmt,data;for(let o=12;o
  const count=fmt.readUInt16LE(2),sr=fmt.readUInt32LE(4),bits=fmt.readUInt16LE(14),size=bits/8;const frames=data.length/(count*size);let channels=Array.from({length:count},()=>new Float32Array(frames));
  for(let i=0,o=0;i<frames;i++)for(let c=0;c<count;c++,o+=size) channels[c][i]=data.readIntLE(o,size)/2**(bits-1);
  return {channels,sr,frames};}
-const root='/Users/de4c/Downloads/ebu-loudness-test-setv05';let files=fs.readdirSync(root).filter(f=>/\.wav$/i.test(f));if(process.argv[2])files=files.filter(f=>new RegExp(process.argv[2]).test(f));let results=[];
+const root='/Users/de4c/Downloads/ebu-loudness-test-setv05';let files=fs.existsSync(root)?fs.readdirSync(root).filter(f=>/\.wav$/i.test(f)):[];if(process.argv[2])files=files.filter(f=>new RegExp(process.argv[2]).test(f));let results=[];
 for(const name of files){const {channels,sr,frames}=readWav(path.join(root,name));global.sampleRate=sr;const p=new Processor();const t=Date.now();for(let i=0;i<frames;i+=128)p.process([channels.map(c=>c.subarray(i,Math.min(i+128,frames)))],[]);
- const m=global.latest;results.push({name,channels:channels.length,...m});console.log(JSON.stringify({name,channels:channels.length,...m,seconds:(Date.now()-t)/1000}));fs.writeFileSync('/private/tmp/breach-ebu-corrected.json',JSON.stringify(results,null,2));}
+ const m=global.latest;results.push({name,channels:channels.length,...m});console.log(JSON.stringify({name,channels:channels.length,...m,seconds:(Date.now()-t)/1000}));if(fs.existsSync('/private/tmp'))fs.writeFileSync('/private/tmp/breach-ebu-corrected.json',JSON.stringify(results,null,2));}
 const assert=require('assert');const tests=results.filter(x=>/^seq-/.test(x.name));let checks=0;
 function close(value,expected,tolerance,name){assert(Math.abs(value-expected)<=tolerance,`${name}: ${value} expected ${expected} ±${tolerance}`);checks++}
 for(const r of tests){const n=r.name;
@@ -32,12 +32,12 @@ for(const sr of [44100,48000,96000]){global.sampleRate=sr;const p=new Processor(
  p.resetMetrics();p.process([[data.subarray(0,2048),new Float32Array(2048)]],[]);assert(!global.latest.phaseCorrelationValid,'one silent channel invalid');}
 console.log('PASS sample-rate, crest, mono, reset, and silent-channel regressions');
 for(const [pattern,key,size] of [['3341-9-','shortTerm','sSize'],['3341-12-','momentary','mSize']]){
- const file=files.find(f=>f.includes(pattern));const {channels,sr,frames}=readWav(path.join(root,file));global.sampleRate=sr;const p=new Processor();let min=Infinity,max=-Infinity;
+ const file=files.find(f=>f.includes(pattern));if(!file) continue;const {channels,sr,frames}=readWav(path.join(root,file));global.sampleRate=sr;const p=new Processor();let min=Infinity,max=-Infinity;
  for(let i=0;i<frames;i+=128){p.process([channels.map(c=>c.subarray(i,i+128))],[]);if(p.samples>=p[size]){const level=p.loudness((key==='shortTerm'?p.sSum:p.mSum)/p[size]);min=Math.min(min,level);max=Math.max(max,level)}}
  close(min,-23,.1,file+' minimum');close(max,-23,.1,file+' maximum');console.log('PASS continuous '+file+' range '+min+' to '+max);
 }
 for(const [pattern,segment,key] of [['3341-11-',6,'maxS'],['3341-14-',.8,'maxM']]){
- const file=files.find(f=>f.includes(pattern));const {channels,sr,frames}=readWav(path.join(root,file));global.sampleRate=sr;const p=new Processor();let step=0;
+ const file=files.find(f=>f.includes(pattern));if(!file) continue;const {channels,sr,frames}=readWav(path.join(root,file));global.sampleRate=sr;const p=new Processor();let step=0;
  for(let i=0;i<frames;i+=128){p.process([channels.map(c=>c.subarray(i,i+128))],[]);if(p.samples>=(step+1)*segment*sr&&step<20){close(p.loudness(p[key]),-38+step,.1,file+' step '+step);step++}}
  assert.equal(step,20);console.log('PASS all 20 successive maxima '+file);
 }

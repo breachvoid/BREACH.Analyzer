@@ -662,13 +662,24 @@ export function WaveformPanel({
       }
     };
 
+    const onSeekOrTime = () => {
+      if (elem && !isNaN(elem.currentTime)) {
+        setCurrentTime(elem.currentTime);
+      }
+    };
+
     updateDuration();
+    onSeekOrTime();
     elem.addEventListener('durationchange', updateDuration);
     elem.addEventListener('loadedmetadata', updateDuration);
+    elem.addEventListener('seeked', onSeekOrTime);
+    elem.addEventListener('timeupdate', onSeekOrTime);
 
     return () => {
       elem.removeEventListener('durationchange', updateDuration);
       elem.removeEventListener('loadedmetadata', updateDuration);
+      elem.removeEventListener('seeked', onSeekOrTime);
+      elem.removeEventListener('timeupdate', onSeekOrTime);
     };
   }, [fileUrl, audioBuffer]);
 
@@ -1119,7 +1130,11 @@ export function WaveformPanel({
   const handleSeek = (ratio: number) => {
     const elem = audioAnalyzer.getAudioElement();
     if (elem) {
-      elem.currentTime = ratio * elem.duration;
+      const dur = elem.duration || currentDuration || 1;
+      const targetTime = ratio * dur;
+      elem.currentTime = targetTime;
+      setCurrentTime(targetTime);
+      audioAnalyzer.handleSeek();
     }
   };
 

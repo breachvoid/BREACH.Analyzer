@@ -156,19 +156,19 @@ export const ColorThemeEditor: React.FC<ColorThemeEditorProps> = ({ config, setC
             <Palette className="w-3.5 h-3.5 text-[#b20000]" />
           </div>
           <div>
-            <h3 className="text-xs font-bold text-white font-sans tracking-[1.4px] uppercase flex items-center gap-2">
+            <h3 className="text-xs font-semibold text-[#F2F2F2] font-sans tracking-[1.4px] uppercase flex items-center gap-2">
               Color Theme Editor
               {config.colorPalette === 'custom' ? (
-                <span className="text-[9px] font-sans font-bold px-1.5 py-0.5 bg-[#181818] text-[#ff8800] border border-[#ff8800]/50 tracking-[1px]">
+                <span className="text-[10px] font-sans font-medium px-1.5 py-0.5 bg-[#181818] text-[#ff8800] border border-[#ff8800]/50 tracking-[1px]">
                   CUSTOM ACTIVE
                 </span>
               ) : (
-                <span className="text-[9px] font-sans font-bold px-1.5 py-0.5 bg-[#181818] text-white border border-[#4a4a4a] tracking-[1px]">
+                <span className="text-[10px] font-sans font-medium px-1.5 py-0.5 bg-[#181818] text-[#B8B8B8] border border-[#4a4a4a] tracking-[1px]">
                   REKORDBOX RGB (DEFAULT)
                 </span>
               )}
             </h3>
-            <p className="text-[10px] text-[#aaaaaa] font-sans mt-0.5 uppercase tracking-[0.5px]">
+            <p className="text-[10px] text-[#858585] font-sans mt-0.5 uppercase tracking-[0.5px]">
               Deploy custom palette across spectrum visualizer traces, waveforms, and measurement meters.
             </p>
           </div>
@@ -177,7 +177,7 @@ export const ColorThemeEditor: React.FC<ColorThemeEditorProps> = ({ config, setC
         <button
           type="button"
           onClick={resetToDefault}
-          className="flex items-center gap-1.5 text-[9px] font-sans font-bold uppercase tracking-[1px] text-[#cccccc] hover:text-[#111111] hover:bg-white px-2.5 py-1.5 bg-[#181818] border border-[#4a4a4a] transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 text-[11px] font-sans font-medium uppercase tracking-[1px] text-[#B8B8B8] hover:text-[#111111] hover:bg-[#F2F2F2] px-2.5 py-1.5 bg-[#181818] border border-[#4a4a4a] transition-colors cursor-pointer"
           title="Reset to default Rekordbox RGB colors"
         >
           <RotateCcw className="w-3 h-3" />
@@ -187,7 +187,7 @@ export const ColorThemeEditor: React.FC<ColorThemeEditorProps> = ({ config, setC
 
       {/* Quick Presets Swatches */}
       <div className="flex flex-col gap-1.5">
-        <span className="text-[9px] font-sans uppercase text-[#aaaaaa] font-bold tracking-[1px]">Quick Swatches:</span>
+        <span className="text-[10px] font-sans uppercase text-[#858585] font-medium tracking-[1px]">Quick Swatches:</span>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
           {THEME_PRESETS.map((preset) => {
             const isMatch =
@@ -203,8 +203,8 @@ export const ColorThemeEditor: React.FC<ColorThemeEditorProps> = ({ config, setC
                 onClick={() => applyPreset(preset)}
                 className={`flex items-center gap-2 p-1.5 border text-left transition-colors cursor-pointer select-none ${
                   isMatch
-                    ? 'bg-[#181818] border-white text-white'
-                    : 'bg-[#181818] border-[#4a4a4a] text-[#cccccc] hover:bg-white hover:text-[#111111]'
+                    ? 'bg-[#181818] border-[#F2F2F2] text-[#F2F2F2]'
+                    : 'bg-[#181818] border-[#4a4a4a] text-[#B8B8B8] hover:bg-[#F2F2F2] hover:text-[#111111]'
                 }`}
                 title={`Apply ${preset.name} palette`}
               >
@@ -213,7 +213,7 @@ export const ColorThemeEditor: React.FC<ColorThemeEditorProps> = ({ config, setC
                   <div className="w-3 h-3 border border-black" style={{ backgroundColor: preset.secondary }} />
                   <div className="w-3 h-3 border border-black" style={{ backgroundColor: preset.highlight }} />
                 </div>
-                <span className="text-[9px] font-sans font-bold uppercase tracking-[0.5px] truncate">{preset.name}</span>
+                <span className="text-[10px] font-sans font-medium uppercase tracking-[0.5px] truncate">{preset.name}</span>
               </button>
             );
           })}
@@ -226,8 +226,8 @@ export const ColorThemeEditor: React.FC<ColorThemeEditorProps> = ({ config, setC
         {/* 1. Primary Color */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[9px] font-sans text-white font-bold uppercase tracking-[1px]">Primary Color</span>
-            <span className="text-[8px] font-sans text-[#aaaaaa] uppercase tracking-[0.5px]">Trace & Accents</span>
+            <span className="text-[10px] font-sans text-[#F2F2F2] font-medium uppercase tracking-[1px]">Primary Color</span>
+            <span className="text-[10px] font-sans text-[#858585] uppercase tracking-[0.5px]">Trace & Accents</span>
           </div>
           <div className="flex items-center gap-2 bg-[#181818] border border-[#4a4a4a] p-1.5 relative h-9">
             <input
@@ -246,7 +246,7 @@ export const ColorThemeEditor: React.FC<ColorThemeEditorProps> = ({ config, setC
               value={hexInputs.primary}
               onChange={(e) => setHexInputs(prev => ({ ...prev, primary: e.target.value }))}
               onBlur={(e) => handleHexBlur('primary', e.target.value)}
-              className="bg-transparent border-0 text-[10px] font-sans font-bold text-white tracking-wider focus:outline-none w-20 uppercase"
+              className="bg-transparent border-0 text-[11px] font-mono font-medium text-[#F2F2F2] tracking-wider focus:outline-none w-20 uppercase"
               maxLength={7}
             />
           </div>
@@ -255,8 +255,8 @@ export const ColorThemeEditor: React.FC<ColorThemeEditorProps> = ({ config, setC
         {/* 2. Secondary Color */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[9px] font-sans text-white font-bold uppercase tracking-[1px]">Secondary Color</span>
-            <span className="text-[8px] font-sans text-[#aaaaaa] uppercase tracking-[0.5px]">Floor & Shadow</span>
+            <span className="text-[10px] font-sans text-[#F2F2F2] font-medium uppercase tracking-[1px]">Secondary Color</span>
+            <span className="text-[10px] font-sans text-[#858585] uppercase tracking-[0.5px]">Floor & Shadow</span>
           </div>
           <div className="flex items-center gap-2 bg-[#181818] border border-[#4a4a4a] p-1.5 relative h-9">
             <input
@@ -275,7 +275,7 @@ export const ColorThemeEditor: React.FC<ColorThemeEditorProps> = ({ config, setC
               value={hexInputs.secondary}
               onChange={(e) => setHexInputs(prev => ({ ...prev, secondary: e.target.value }))}
               onBlur={(e) => handleHexBlur('secondary', e.target.value)}
-              className="bg-transparent border-0 text-[10px] font-sans font-bold text-white tracking-wider focus:outline-none w-20 uppercase"
+              className="bg-transparent border-0 text-[11px] font-mono font-medium text-[#F2F2F2] tracking-wider focus:outline-none w-20 uppercase"
               maxLength={7}
             />
           </div>
@@ -284,8 +284,8 @@ export const ColorThemeEditor: React.FC<ColorThemeEditorProps> = ({ config, setC
         {/* 3. Highlight Color */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[9px] font-sans text-white font-bold uppercase tracking-[1px]">Highlight Color</span>
-            <span className="text-[8px] font-sans text-[#aaaaaa] uppercase tracking-[0.5px]">Peaks & Markers</span>
+            <span className="text-[10px] font-sans text-[#F2F2F2] font-medium uppercase tracking-[1px]">Highlight Color</span>
+            <span className="text-[10px] font-sans text-[#858585] uppercase tracking-[0.5px]">Peaks & Markers</span>
           </div>
           <div className="flex items-center gap-2 bg-[#181818] border border-[#4a4a4a] p-1.5 relative h-9">
             <input
@@ -304,7 +304,7 @@ export const ColorThemeEditor: React.FC<ColorThemeEditorProps> = ({ config, setC
               value={hexInputs.highlight}
               onChange={(e) => setHexInputs(prev => ({ ...prev, highlight: e.target.value }))}
               onBlur={(e) => handleHexBlur('highlight', e.target.value)}
-              className="bg-transparent border-0 text-[10px] font-sans font-bold text-white tracking-wider focus:outline-none w-20 uppercase"
+              className="bg-transparent border-0 text-[11px] font-mono font-medium text-[#F2F2F2] tracking-wider focus:outline-none w-20 uppercase"
               maxLength={7}
             />
           </div>
@@ -314,7 +314,7 @@ export const ColorThemeEditor: React.FC<ColorThemeEditorProps> = ({ config, setC
 
       {/* Live Gradient Preview Bar */}
       <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between text-[8px] font-sans font-bold text-[#aaaaaa] uppercase tracking-[1px]">
+        <div className="flex items-center justify-between text-[10px] font-sans font-medium text-[#858585] uppercase tracking-[1px]">
           <span>Interpolated Spectral Gradient Spectrum</span>
           <span>Floor &rarr; Mid &rarr; Peak &rarr; Accent</span>
         </div>

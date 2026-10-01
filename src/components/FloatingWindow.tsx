@@ -196,11 +196,11 @@ export function FloatingWindow({
         <div className="flex items-center gap-2 max-w-[50%] overflow-hidden">
           <Move className="w-3.5 h-3.5 text-[#b20000] shrink-0" />
           <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
-            <span className="text-[11px] font-sans leading-none tracking-[1.4px] text-white font-bold uppercase select-none shrink-0">
+            <span className="text-[12px] font-sans leading-none tracking-[1.4px] text-[#F2F2F2] font-semibold uppercase select-none shrink-0">
               {title}
             </span>
             {subtitle && (
-              <span className="text-[9px] text-[#aaaaaa] font-sans tracking-wide uppercase leading-none select-none text-ellipsis overflow-hidden">
+              <span className="text-[10px] text-[#858585] font-sans tracking-wide uppercase leading-none select-none text-ellipsis overflow-hidden">
                 • {subtitle}
               </span>
             )}

@@ -37,6 +37,7 @@ import { ResetButton, PopOutButton } from './SharedButtons';
 import { SettingsPanel } from './SettingsPanel';
 import { VisualSettingsPanel } from './VisualSettingsPanel';
 import { AudioFileRegistry, fetchPartialArrayBuffer, getAudioFileSize } from '../utils';
+import { parseAudioMetadata } from '../utils/audioMetadata';
 
 interface PlaylistItem {
   id: string;
@@ -111,6 +112,7 @@ export function SourceSelector({
   const [fileDuration, setFileDuration] = useState<number>(0);
   const [fileCurrentTime, setFileCurrentTime] = useState<number>(0);
   const [dragActive, setDragActive] = useState<boolean>(false);
+  const metaRequestIdRef = useRef<number>(0);
 
   const [activeDropdown, setActiveDropdown] = useState<AudioSourceType | null>(null);
   const [hoveredDropdown, setHoveredDropdown] = useState<AudioSourceType | null>(null);
@@ -288,16 +290,20 @@ export function SourceSelector({
   // Toggle the active state of the analyzer engine (powered ON or OFF)
   const handleToggleEngine = async () => {
     if (isPlaying) {
-      // Stop the analyzer engine
-      audioAnalyzer.stop();
-      setIsPlaying(false);
-      // Also pause playback if music is currently playing, since analyzer is stopped
-      if (activeSourceType === AudioSourceType.AUDIO_FILE && audioRef.current) {
-        audioRef.current.pause();
+      if (activeSourceType === AudioSourceType.AUDIO_FILE) {
+        // Normal pause: pause playback and preserve accumulated BS.1770 / EBU R128 metrics
+        if (audioRef.current) {
+          audioRef.current.pause();
+        }
+        audioAnalyzer.pause();
+      } else {
+        // Full stop for streams / generators / mic
+        audioAnalyzer.stop();
       }
+      setIsPlaying(false);
       setIsPlaybackActive(false);
     } else {
-      // Power on the analyzer engine
+      // Power on the analyzer engine / resume playback
       if (activeSourceType === AudioSourceType.AUDIO_FILE) {
         if (!fileUrl) {
           // Open dropdown or select element to choose trace
@@ -311,6 +317,10 @@ export function SourceSelector({
               element: audioRef.current
             });
             setIsPlaying(true);
+            setIsPlaybackActive(true);
+            audioRef.current.play().catch((err) => {
+              console.warn('Playback gesture error:', err);
+            });
           } catch (err) {
             console.error('Failed to start audio analyzer engine:', err);
           }
@@ -569,6 +579,8 @@ export function SourceSelector({
     const currentUrl = fileUrl || audioRef.current.src;
     if (!currentUrl) return;
 
+    const reqId = ++metaRequestIdRef.current;
+
     // Detect estimated properties first as immediate fallback
     let estSampleRate = 44100;
     let estBitrate = 320;
@@ -601,41 +613,26 @@ export function SourceSelector({
       bufferSize: 2048
     });
 
-    // Try to perform a true background fetch and decode to retrieve exact file metrics using optimized chunk fetches
+    // Perform background header fetch and parse to retrieve exact native file metrics
     try {
       const arrayBuffer = await fetchPartialArrayBuffer(currentUrl, 3 * 1024 * 1024);
-      const ctx = audioAnalyzer.getContext() || audioAnalyzer.initContext();
-      // Decode the 3MB chunk directly (sliced inside the fetcher or read progressively)
-      const decodedBuffer = await ctx.decodeAudioData(arrayBuffer);
+      if (reqId !== metaRequestIdRef.current) return;
 
-      const actualSampleRate = decodedBuffer.sampleRate;
-      const actualDuration = audioRef.current.duration || decodedBuffer.duration || 1;
-      
-      const fileSize = await getAudioFileSize(currentUrl, AudioFileRegistry.get(currentUrl));
-      // Calculate true encoded bitrate using direct file size
-      const actualBitrate = Math.round((fileSize * 8 / actualDuration) / 1000);
-
-      // Determine codec based on registered file name/type or URL estimation
-      let actualCodec = estCodec;
       const registeredFile = AudioFileRegistry.get(currentUrl);
-      const blobType = registeredFile ? registeredFile.type : '';
-      if (blobType.includes('mpeg') || blobType.includes('mp3')) {
-        actualCodec = 'MPEG Layer-3 (MP3)';
-      } else if (blobType.includes('wav') || blobType.includes('wave')) {
-        actualCodec = 'Linear PCM (WAV)';
-      } else if (blobType.includes('ogg')) {
-        actualCodec = 'Ogg Vorbis (OGG)';
-      } else if (blobType.includes('flac')) {
-        actualCodec = 'FLAC Audio (Lossless)';
-      } else if (blobType.includes('aac') || blobType.includes('m4a') || blobType.includes('mp4')) {
-        actualCodec = 'AAC Audio (M4A)';
-      }
+      const fileSize = await getAudioFileSize(currentUrl, registeredFile);
+      const actualDuration = audioRef.current.duration || 1;
+
+      const parsed = parseAudioMetadata(arrayBuffer, fileSize, actualDuration, estCodec);
+      if (reqId !== metaRequestIdRef.current) return;
 
       audioAnalyzer.updateMetadata({
-        sampleRate: actualSampleRate,
-        bitrate: actualBitrate > 0 ? actualBitrate : estBitrate,
-        codec: actualCodec,
-        bufferSize: 2048
+        sampleRate: parsed.sampleRate,
+        bitrate: parsed.bitrate,
+        codec: parsed.codec,
+        bitDepth: parsed.bitDepth,
+        isVBR: parsed.isVBR,
+        bufferSize: 2048,
+        trackChannelCount: parsed.channels
       });
     } catch (e) {
       console.warn('Real-time meta decoding failed, proceeding with estimation:', e);
@@ -647,6 +644,7 @@ export function SourceSelector({
     setFileCurrentTime(time);
     if (audioRef.current) {
       audioRef.current.currentTime = time;
+      audioAnalyzer.handleSeek();
     }
   };
 
@@ -833,14 +831,14 @@ export function SourceSelector({
                         <span className="font-medium text-[#858585]">Rate:</span>
                         <span className="text-[#F2F2F2] font-semibold">{streamMetadata && streamMetadata.sampleRate > 0 ? (streamMetadata.sampleRate / 1000).toFixed(1) + ' kHz' : '44.1 kHz'}</span>
                       </div>
-                      {/* Bitrate */}
+                      {/* Bitrate & Bit Depth */}
                       <div className="flex items-center gap-1">
                         <Sliders className="w-3 h-3 text-[#858585] shrink-0" />
                         <span className="font-medium text-[#858585]">Specs:</span>
                         <span className="text-[#F2F2F2] font-semibold">
                           {streamMetadata && streamMetadata.bitrate > 0 
-                            ? (streamMetadata.bitrate / 1000).toFixed(0) + ' kbps' 
-                            : 'Est. Premium VBR'} 
+                            ? `${streamMetadata.bitDepth ? streamMetadata.bitDepth + '-bit / ' : ''}${streamMetadata.bitrate} kbps${streamMetadata.isVBR ? ' (VBR)' : ''}`
+                            : 'Est. VBR'} 
                         </span>
                       </div>
                       <div className="flex items-center gap-1">
