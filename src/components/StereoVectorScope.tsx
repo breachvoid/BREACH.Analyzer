@@ -52,8 +52,8 @@ export function StereoVectorScope({
   const scaleFactor = 0.8; // constant scale factor for maximum layout consistency
   const plotStyle = 'glow'; // determined by requirements: always glow
 
-  const minCorrRef = useRef<number>(1.0);
-  const maxCorrRef = useRef<number>(1.0);
+  const minCorrRef = useRef<number>(Infinity);
+  const maxCorrRef = useRef<number>(-Infinity);
   const phaseCorrRef = useRef<number>(1.0);
 
   const peakHoldRef = useRef<HTMLDivElement | null>(null);
@@ -91,20 +91,20 @@ export function StereoVectorScope({
 
   const getCorrelationDescription = (corr: number): string => {
     if (corr > 0.9) {
-      return "High correlation: Narrow/mono signal content perfectly aligned.";
+      return "High correlation: Strongly similar left and right channels.";
     } else if (corr > 0.5) {
-      return "High correlation: Strong in-phase signal, safe for mono compatibility.";
+      return "Positive correlation: Check a mono downmix to assess compatibility.";
     } else if (corr >= 0) {
-      return "Low correlation: Wide stereo field, check mono downmix.";
+      return "Low correlation: Limited similarity between channels; check the mono downmix.";
     } else {
-      return "Out of phase: Signal contains phase cancellation, will disappear in mono!";
+      return "Negative correlation: Cancellation may occur in the mono downmix.";
     }
   };
 
   // Reset peak correlation
   const handleResetPeak = () => {
-    minCorrRef.current = 1.0;
-    maxCorrRef.current = 1.0;
+    minCorrRef.current = Infinity;
+    maxCorrRef.current = -Infinity;
     phaseCorrRef.current = 1.0;
     recentPeaks.current = [];
     lastActiveTime.current = Date.now();
@@ -113,14 +113,14 @@ export function StereoVectorScope({
       minCorrTextRef.current.textContent = '-';
     }
     if (phaseCorrTextRef.current) {
-      phaseCorrTextRef.current.textContent = '1.000';
+      phaseCorrTextRef.current.textContent = 'N/A';
     }
     if (maxCorrTextRef.current) {
-      maxCorrTextRef.current.textContent = '1.000';
+      maxCorrTextRef.current.textContent = '-';
     }
     if (barRef.current) {
       barRef.current.style.left = '50%';
-      barRef.current.style.width = '50%';
+      barRef.current.style.width = '0%';
       barRef.current.className = "absolute top-0 bottom-0 transition-all duration-75 bg-[#b20000]";
     }
     if (peakHoldRef.current) {
@@ -128,7 +128,7 @@ export function StereoVectorScope({
       peakHoldRef.current.style.display = 'none';
     }
     if (descRef.current) {
-      descRef.current.textContent = getCorrelationDescription(1.0);
+      descRef.current.textContent = 'Waiting for a valid stereo measurement.';
     }
   };
 
@@ -169,7 +169,7 @@ export function StereoVectorScope({
 
       // --- 1. Real-time Phase Correlation Monitor update ---
       const metrics = audioAnalyzer.getMetrics();
-      if (metrics) {
+      if (metrics && metrics.phaseCorrelationValid !== false && audioAnalyzer.isSourceActive()) {
         const value = metrics.phaseCorrelation;
         phaseCorrRef.current = value;
         minCorrRef.current = Math.min(minCorrRef.current, value);
@@ -186,7 +186,7 @@ export function StereoVectorScope({
         const currMaxCorr = maxCorrRef.current;
 
         if (minCorrTextRef.current) {
-          minCorrTextRef.current.textContent = currMinCorr < 0 ? currMinCorr.toFixed(3) : '-';
+          minCorrTextRef.current.textContent = currMinCorr.toFixed(3);
         }
         if (phaseCorrTextRef.current) {
           phaseCorrTextRef.current.textContent = currPhaseCorr.toFixed(3);
@@ -227,6 +227,11 @@ export function StereoVectorScope({
             descRef.current.textContent = description;
           }
         }
+      } else {
+        if (phaseCorrTextRef.current) phaseCorrTextRef.current.textContent = 'N/A';
+        if (barRef.current) barRef.current.style.width = '0%';
+        if (peakHoldRef.current) peakHoldRef.current.style.display = 'none';
+        if (descRef.current) descRef.current.textContent = 'Correlation unavailable: silence or a missing channel.';
       }
 
       // --- 2. Goniometer rendering ---
@@ -508,8 +513,8 @@ export function StereoVectorScope({
         {/* Numbers strip: Min (-), Current, Max */}
         <div className="flex justify-between font-sans text-[11px] font-bold px-1 select-none text-white tracking-[1px] uppercase">
           <span ref={minCorrTextRef} className="text-left w-20 text-[#b20000]">-</span>
-          <span ref={phaseCorrTextRef} className="text-center flex-grow text-white">1.000</span>
-          <span ref={maxCorrTextRef} className="text-right w-20 text-white">1.000</span>
+          <span ref={phaseCorrTextRef} className="text-center flex-grow text-white">N/A</span>
+          <span ref={maxCorrTextRef} className="text-right w-20 text-white">-</span>
         </div>
 
         {/* Bar / Track */}
@@ -553,7 +558,7 @@ export function StereoVectorScope({
 
         {/* Dynamic description of the phase status */}
         <p ref={descRef} className="text-[11px] font-sans font-normal text-center text-[#aaaaaa] leading-normal uppercase tracking-wider" id="correlation-explanation-text">
-          High correlation: Narrow/mono signal content perfectly aligned.
+          High correlation: Strongly similar left and right channels.
         </p>
       </div>
 

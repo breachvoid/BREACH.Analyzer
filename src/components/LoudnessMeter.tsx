@@ -408,7 +408,7 @@ export function LoudnessMeter({
     
     // 1. Max Peak Text
     if (maxPeakTextRef.current) {
-      maxPeakTextRef.current.textContent = `Peak dBFS Max: ${formatDB(m.maxPeak)}`;
+      maxPeakTextRef.current.textContent = `True Peak dBTP Max: ${formatDB(m.maxPeak)}`;
       if (m.maxPeak >= 0) {
         maxPeakTextRef.current.className = "text-[12px] font-mono font-bold text-[#FF3333]";
       } else {
@@ -684,11 +684,11 @@ export function LoudnessMeter({
           id="meters-stage" 
         >
         
-        {/* L/R True Peak meters (dbFS) - columns 1-4 */}
+        {/* L/R True Peak meters (dBTP) - columns 1-4 */}
         <div className="md:col-span-4 flex flex-col justify-between space-y-3" id="peak-meters-block">
           <div className="flex flex-col items-center justify-center bg-[#121212] p-2 border border-[#4a4a4a] gap-1.5">
             <span ref={maxPeakTextRef} className="text-[12px] font-sans font-semibold uppercase tracking-[1px] text-[#F2F2F2]" id="peak-dbfs-max-text">
-              Peak dBFS Max: -120.0
+              True Peak dBTP Max: -120.0
             </span>
             <div 
               ref={clipIndicatorRef}

@@ -21,8 +21,6 @@ export class AudioAnalyzerEngine {
   private workletRegistrationPromises = new WeakMap<AudioContext, Promise<void>>();
 
   // Filter nodes for K-weighting (ITU-R BS.1770)
-  private kStage1Filter: BiquadFilterNode | null = null; // High-shelving pre-filter
-  private kStage2Filter: BiquadFilterNode | null = null; // RLB high-pass filter
 
   // Media streams and elements
   private micStream: MediaStream | null = null;
@@ -125,7 +123,8 @@ export class AudioAnalyzerEngine {
       peakRight: -120,
       maxPeak: -120,
       crestFactor: 0,
-      phaseCorrelation: 1.0
+      phaseCorrelation: 0,
+      phaseCorrelationValid: false
     };
   }
 
@@ -419,18 +418,6 @@ export class AudioAnalyzerEngine {
       } catch (e) {}
       this.dummyGain = null;
     }
-    if (this.kStage2Filter) {
-      try {
-        this.kStage2Filter.disconnect();
-      } catch (e) {}
-      this.kStage2Filter = null;
-    }
-    if (this.kStage1Filter) {
-      try {
-        this.kStage1Filter.disconnect();
-      } catch (e) {}
-      this.kStage1Filter = null;
-    }
     if (this.analyser) {
       try {
         this.analyser.disconnect();
@@ -483,515 +470,182 @@ export class AudioAnalyzerEngine {
 class LoudnessProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.bufSize = 2048;
-    this.bufferL = new Float32Array(this.bufSize);
-    this.bufferR = new Float32Array(this.bufSize);
-    this.unweightedBufferL = new Float32Array(this.bufSize);
-    this.unweightedBufferR = new Float32Array(this.bufSize);
-    this.writeIndex = 0;
-    
-    // Ring buffer allocations for momentary metrics
-    const bufferDurationMs = (this.bufSize / sampleRate) * 1000;
-    this.maxMomentaryBlocks = Math.round(400 / bufferDurationMs);
-    this.maxShortTermBlocks = Math.round(3000 / bufferDurationMs);
-    
-    this.momentaryHistoryRing = new Float32Array(this.maxMomentaryBlocks);
-    this.momentaryRingWrite = 0;
-    this.momentaryRingCount = 0;
-
-    this.shortTermHistoryRing = new Float32Array(this.maxShortTermBlocks);
-    this.shortTermRingWrite = 0;
-    this.shortTermRingCount = 0;
-
-    // Gating structures (Histogram based to prevent O(N) loops and memory pressure)
-    this.MIN_LUFS = -120;
-    this.MAX_LUFS = 20;
-    this.BINS_PER_DB = 10;
-    this.NUM_BINS = (this.MAX_LUFS - this.MIN_LUFS) * this.BINS_PER_DB + 1;
-
-    this.gatingBlocksHistogram = new Uint32Array(this.NUM_BINS);
-    this.gatingBlocksCount = 0;
-
-    this.shortTermLUFSHistogram = new Uint32Array(this.NUM_BINS);
-    this.shortTermLUFSCount = 0;
-
-    this.rawBufferPowerRing = new Float32Array(2048);
-    this.rawBufferPowerWrite = 0;
-    this.rawBufferPowerCount = 0;
-    this.samplesSinceLastGating = 0;
-    this._blockCount = 0;
-
-    this.maxMomentary = -120;
-    this.maxShortTerm = -120;
-    this.maxPeak = -120;
-    this.maxPeakLeft = -120;
-    this.maxPeakRight = -120;
-    
-    // Broadcast-Grade Phase Correlation Parameters (250ms integration window)
-    const correlationIntegrationSec = 0.250; 
-    this.correlationAlpha = 1.0 - Math.exp(-1.0 / (correlationIntegrationSec * sampleRate));
-    this.sLR = 0.0;
-    this.sLL = 1e-12;
-    this.sRR = 1e-12;
-    this.smoothedPhaseCorrelation = 1.0;
-    
-    this.integratedLUFS = -120;
-    this.lra = 0;
-    this.lraUpdateTicks = 0;
-
-    this.port.onmessage = (event) => {
-      if (event.data.type === 'RESET') {
-        this.resetMetrics();
-      }
+    this.mSize = Math.round(sampleRate * 0.4);
+    this.sSize = Math.round(sampleRate * 3);
+    this.hop = Math.round(sampleRate * 0.1);
+    this.powerRing = new Float64Array(this.sSize);
+    // BS.1770 Annex 2: four-phase interpolation, continuous across render quanta.
+    this.tp = [
+      [0.001708984375,0.010986328125,-0.0196533203125,0.033203125,-0.0594482421875,0.1373291015625,0.97216796875,-0.102294921875,0.047607421875,-0.026611328125,0.014892578125,-0.00830078125],
+      [-0.0291748046875,0.029296875,-0.0517578125,0.089111328125,-0.16650390625,0.465087890625,0.77978515625,-0.2003173828125,0.1015625,-0.0582275390625,0.0330810546875,-0.0189208984375],
+      [-0.0189208984375,0.0330810546875,-0.0582275390625,0.1015625,-0.2003173828125,0.77978515625,0.465087890625,-0.16650390625,0.089111328125,-0.0517578125,0.029296875,-0.0291748046875],
+      [-0.00830078125,0.014892578125,-0.026611328125,0.047607421875,-0.102294921875,0.97216796875,0.1373291015625,-0.0594482421875,0.033203125,-0.0196533203125,0.010986328125,0.001708984375]
+    ];
+    // Equivalent analogue response, adapted to the context sample rate.
+    const shelfK = Math.tan(Math.PI * 1681.974450955533 / sampleRate);
+    const vh = Math.pow(10, 3.999843853973347 / 20);
+    const vb = Math.pow(vh, 0.4996667741545416);
+    const q = 0.7071752369554196;
+    const a0 = 1 + shelfK / q + shelfK * shelfK;
+    this.shelf = [(vh + vb * shelfK / q + shelfK * shelfK) / a0,
+      2 * (shelfK * shelfK - vh) / a0,
+      (vh - vb * shelfK / q + shelfK * shelfK) / a0,
+      2 * (shelfK * shelfK - 1) / a0,
+      (1 - shelfK / q + shelfK * shelfK) / a0];
+    const hpK = Math.tan(Math.PI * 38.13547087602444 / sampleRate);
+    const hpQ = 0.5003270373238773;
+    const hpA0 = 1 + hpK / hpQ + hpK * hpK;
+    this.highpass = [1, -2, 1, 2 * (hpK * hpK - 1) / hpA0,
+      (1 - hpK / hpQ + hpK * hpK) / hpA0];
+    this.channels = [];
+    this.resetMetrics();
+    this.port.onmessage = event => {
+      if (event.data.type === 'RESET') this.resetMetrics();
     };
   }
 
   resetMetrics() {
-    this.maxMomentary = -120;
-    this.maxShortTerm = -120;
-    this.maxPeak = -120;
-    this.maxPeakLeft = -120;
-    this.maxPeakRight = -120;
-    this.writeIndex = 0;
-    
-    this.sLR = 0.0;
-    this.sLL = 1e-12;
-    this.sRR = 1e-12;
-    this.smoothedPhaseCorrelation = 1.0;
-    
-    this.integratedLUFS = -120;
+    this.powerRing.fill(0);
+    this.position = 0;
+    this.samples = 0;
+    this.samplesSinceMessage = 0;
+    this.mSum = 0;
+    this.sSum = 0;
+    this.maxM = 0;
+    this.maxS = 0;
+    this.maxPeak = 0;
+    this.integrated = -120;
     this.lra = 0;
-    this.lraUpdateTicks = 0;
-
-    this.gatingBlocksCount = 0;
-    this.gatingBlocksHistogram.fill(0);
-
-    this.shortTermLUFSCount = 0;
-    this.shortTermLUFSHistogram.fill(0);
-
-    this.rawBufferPowerWrite = 0;
-    this.rawBufferPowerCount = 0;
-    this.rawBufferPowerRing.fill(0);
-    this.samplesSinceLastGating = 0;
-    this._blockCount = 0;
-
-    this.momentaryRingWrite = 0;
-    this.momentaryRingCount = 0;
-    this.momentaryHistoryRing.fill(0);
-
-    this.shortTermRingWrite = 0;
-    this.shortTermRingCount = 0;
-    this.shortTermHistoryRing.fill(0);
-    
-    this.port.postMessage({
-      type: 'METRICS',
-      metrics: {
-        momentary: -120,
-        shortTerm: -120,
-        integrated: -120,
-        lra: 0,
-        maxMomentary: -120,
-        maxShortTerm: -120,
-        peakLeft: -120,
-        peakRight: -120,
-        maxPeak: -120,
-        crestFactor: 0,
-        phaseCorrelation: 1.0
-      }
-    });
+    this.sLL = 0;
+    this.sRR = 0;
+    this.sLR = 0;
+    this.alpha = 1 - Math.exp(-1 / (0.25 * sampleRate));
+    // Counts AND exact power sums avoid reconstructing loudness from bin centres.
+    this.gateCounts = new Uint32Array(14001);
+    this.gatePowers = new Float64Array(14001);
+    this.lraCounts = new Uint32Array(14001);
+    this.lraPowers = new Float64Array(14001);
+    this.channels = [];
   }
 
-  calculateLoudness(numChannels) {
-    // --- PHASE 1: Real Sub-sample True Peak Tracking on UNWEIGHTED signals ---
-    let blockPeakLeft = 1e-12;
-    let blockPeakRight = 1e-12;
+  loudness(power) { return power > 1e-12 ? -0.691 + 10 * Math.log10(power) : -120; }
+  db(amplitude) { return amplitude > 1e-6 ? 20 * Math.log10(amplitude) : -120; }
+  bin(power) { return Math.max(0, Math.min(14000, Math.floor((this.loudness(power) + 120) * 100))); }
 
-    const rawDataL = this.unweightedBufferL;
-    const rawDataR = numChannels >= 2 ? this.unweightedBufferR : rawDataL;
-
-    for (let i = 0; i < rawDataL.length; i++) {
-      const s = rawDataL[i];
-      const absVal = Math.abs(s);
-      let peakEst = absVal;
-      
-      // Hermite-Quadratic Parabolic true peak interpolator
-      if (i > 0 && i < rawDataL.length - 1) {
-        const prev = Math.abs(rawDataL[i - 1]);
-        const next = Math.abs(rawDataL[i + 1]);
-        if (absVal > prev && absVal > next) {
-          const denom = 2 * (prev - 2 * absVal + next);
-          if (Math.abs(denom) > 1e-6) {
-            const peakOffset = (prev - next) / denom;
-            const val = absVal - (prev - next) * peakOffset / 4;
-            if (val > peakEst) peakEst = val;
-          }
-        }
-      }
-      if (peakEst > blockPeakLeft) blockPeakLeft = peakEst;
-    }
-    
-    if (numChannels >= 2) {
-      for (let i = 0; i < rawDataR.length; i++) {
-        const s = rawDataR[i];
-        const absVal = Math.abs(s);
-        let peakEst = absVal;
-        
-        // Hermite-Quadratic Parabolic true peak interpolator
-        if (i > 0 && i < rawDataR.length - 1) {
-          const prev = Math.abs(rawDataR[i - 1]);
-          const next = Math.abs(rawDataR[i + 1]);
-          if (absVal > prev && absVal > next) {
-            const denom = 2 * (prev - 2 * absVal + next);
-            if (Math.abs(denom) > 1e-6) {
-              const peakOffset = (prev - next) / denom;
-              const val = absVal - (prev - next) * peakOffset / 4;
-              if (val > peakEst) peakEst = val;
-            }
-          }
-        }
-        if (peakEst > blockPeakRight) blockPeakRight = peakEst;
-      }
-    } else {
-      blockPeakRight = blockPeakLeft;
-    }
-
-    const peakDBL = 20 * Math.log10(blockPeakLeft);
-    const peakDBR = 20 * Math.log10(blockPeakRight);
-    const blockMaxPeak = Math.max(peakDBL, peakDBR);
-
-    // Update historical peaks
-    this.maxPeakLeft = Math.max(this.maxPeakLeft, peakDBL);
-    this.maxPeakRight = Math.max(this.maxPeakRight, peakDBR);
-    this.maxPeak = Math.max(this.maxPeak, blockMaxPeak);
-
-    // --- PHASE 2: Loudness Formulation (ITU-R BS.1770) on K-WEIGHTED signals ---
-    let totalMeanSquarePower = 0;
-    
-    // Left Channel
-    let sumOfSquaresL = 0;
-    for (let i = 0; i < this.bufferL.length; i++) {
-      const s = this.bufferL[i];
-      sumOfSquaresL += s * s;
-    }
-    totalMeanSquarePower += sumOfSquaresL / this.bufferL.length;
-
-    // Right Channel
-    if (numChannels >= 2) {
-      let sumOfSquaresR = 0;
-      for (let i = 0; i < this.bufferR.length; i++) {
-        const s = this.bufferR[i];
-        sumOfSquaresR += s * s;
-      }
-      totalMeanSquarePower += sumOfSquaresR / this.bufferR.length;
-    } else {
-      totalMeanSquarePower += sumOfSquaresL / this.bufferL.length;
-    }
-
-    // ITU-R BS.1770 specifies summing the weighted channel energies.
-    const normalizedPower = totalMeanSquarePower;
-
-    // Momentary Ring Buffer Update
-    this.momentaryHistoryRing[this.momentaryRingWrite] = normalizedPower;
-    this.momentaryRingWrite = (this.momentaryRingWrite + 1) % this.maxMomentaryBlocks;
-    if (this.momentaryRingCount < this.maxMomentaryBlocks) {
-      this.momentaryRingCount++;
-    }
-
-    // Short Term Ring Buffer Update
-    this.shortTermHistoryRing[this.shortTermRingWrite] = normalizedPower;
-    this.shortTermRingWrite = (this.shortTermRingWrite + 1) % this.maxShortTermBlocks;
-    if (this.shortTermRingCount < this.maxShortTermBlocks) {
-      this.shortTermRingCount++;
-    }
-
-    // Compute averages
-    let sumMomentary = 0;
-    for (let i = 0; i < this.momentaryRingCount; i++) {
-      sumMomentary += this.momentaryHistoryRing[i];
-    }
-    const avgMomentaryPower = sumMomentary / Math.max(1, this.momentaryRingCount);
-
-    let sumShortTerm = 0;
-    for (let i = 0; i < this.shortTermRingCount; i++) {
-      sumShortTerm += this.shortTermHistoryRing[i];
-    }
-    const avgShortTermPower = sumShortTerm / Math.max(1, this.shortTermRingCount);
-
-    const momentaryLUFS = -0.691 + (10 * Math.log10(avgMomentaryPower + 1e-12));
-    const shortTermLUFS = -0.691 + (10 * Math.log10(avgShortTermPower + 1e-12));
-
-    if (momentaryLUFS > this.maxMomentary) {
-      this.maxMomentary = momentaryLUFS;
-    }
-    if (shortTermLUFS > this.maxShortTerm) {
-      this.maxShortTerm = shortTermLUFS;
-    }
-
-    this._blockCount++;
-
-    const maxSamples400ms = Math.round(0.4 * sampleRate);
-    const maxRawBlocks = Math.ceil(maxSamples400ms / this.bufSize);
-    
-    this.rawBufferPowerRing[this.rawBufferPowerWrite] = normalizedPower;
-    this.rawBufferPowerWrite = (this.rawBufferPowerWrite + 1) % 2048;
-    if (this.rawBufferPowerCount < 2048) {
-      this.rawBufferPowerCount++;
-    }
-
-    this.samplesSinceLastGating += this.bufSize;
-    const samplesPer100ms = Math.round(0.1 * sampleRate);
-
-    let gatingBlockAdded = false;
-    if (this.samplesSinceLastGating >= samplesPer100ms) {
-      this.samplesSinceLastGating -= samplesPer100ms;
-
-      const limit = Math.min(this.rawBufferPowerCount, maxRawBlocks);
-      let powerSum = 0;
-      for (let i = 0; i < limit; i++) {
-        const idx = (this.rawBufferPowerWrite - 1 - i + 2048) % 2048;
-        powerSum += this.rawBufferPowerRing[idx];
-      }
-      const true400msPower = limit > 0 ? (powerSum / limit) : 0;
-
-      if (true400msPower > 1e-10) {
-        gatingBlockAdded = true;
-        // Compute block loudness in LUFS
-        const blockLUFS = -0.691 + (10 * Math.log10(true400msPower + 1e-12));
-        
-        // Add to gating blocks histogram
-        const binIndex = Math.round((blockLUFS - this.MIN_LUFS) * this.BINS_PER_DB);
-        const safeBinIndex = Math.max(0, Math.min(this.NUM_BINS - 1, binIndex));
-        this.gatingBlocksHistogram[safeBinIndex]++;
-        this.gatingBlocksCount++;
-
-        if (shortTermLUFS > -120) {
-          // Add to short term LUFS histogram
-          const stBinIndex = Math.round((shortTermLUFS - this.MIN_LUFS) * this.BINS_PER_DB);
-          const safeStBinIndex = Math.max(0, Math.min(this.NUM_BINS - 1, stBinIndex));
-          this.shortTermLUFSHistogram[safeStBinIndex]++;
-          this.shortTermLUFSCount++;
-        }
-      }
-    }
-
-    if (gatingBlockAdded) {
-      // --- PHASE 3: Integrated Loudness Calculation (EBU R128 Dual Gate - Histogram based) ---
-      // Absolute Gate Threshold: -70 LUFS.
-      // -70 LUFS bin index: Math.round((-70 - this.MIN_LUFS) * this.BINS_PER_DB) = 500
-      const absThresholdBinIndex = 500;
-      
-      let absoluteGatedCount = 0;
-      let absoluteGatedSum = 0;
-      for (let bin = absThresholdBinIndex + 1; bin < this.NUM_BINS; bin++) {
-        const count = this.gatingBlocksHistogram[bin];
-        if (count > 0) {
-          const lufs = this.MIN_LUFS + bin / this.BINS_PER_DB;
-          const power = Math.pow(10, (lufs + 0.691) / 10);
-          absoluteGatedSum += count * power;
-          absoluteGatedCount += count;
-        }
-      }
-
-      if (absoluteGatedCount > 0) {
-        const avgPowerAbs = absoluteGatedSum / absoluteGatedCount;
-        const absLUFS = -0.691 + (10 * Math.log10(avgPowerAbs + 1e-12));
-
-        const relativeThresholdLUFS = absLUFS - 10;
-        
-        // Rel threshold bin mapping
-        const relThresholdBinIndex = Math.max(
-          absThresholdBinIndex + 1,
-          Math.ceil((relativeThresholdLUFS - this.MIN_LUFS) * this.BINS_PER_DB)
-        );
-
-        let finalCount = 0;
-        let finalSum = 0;
-        for (let bin = relThresholdBinIndex; bin < this.NUM_BINS; bin++) {
-          const count = this.gatingBlocksHistogram[bin];
-          if (count > 0) {
-            const lufs = this.MIN_LUFS + bin / this.BINS_PER_DB;
-            const power = Math.pow(10, (lufs + 0.691) / 10);
-            finalSum += count * power;
-            finalCount += count;
-          }
-        }
-
-        if (finalCount > 0) {
-          const avgFinalPower = finalSum / finalCount;
-          this.integratedLUFS = -0.691 + (10 * Math.log10(avgFinalPower + 1e-12));
-        } else {
-          this.integratedLUFS = absLUFS;
-        }
-      }
-
-      // --- PHASE 4: Loudness Range (LRA) according to EBU Tech 3342 (Histogram based) ---
-      this.lraUpdateTicks++;
-      // Only recalculate LRA once every 5 gating updates (~500ms) to prevent audio thread performance drop
-      if (this.lraUpdateTicks >= 5 || this.lra === 0) {
-        this.lraUpdateTicks = 0;
-        
-        if (this.shortTermLUFSCount >= 20) {
-          // 1. Absolute Gate: -70 LUFS (bin index 500)
-          let sumPowers = 0;
-          let absGatedCount = 0;
-          for (let bin = absThresholdBinIndex + 1; bin < this.NUM_BINS; bin++) {
-            const count = this.shortTermLUFSHistogram[bin];
-            if (count > 0) {
-              const lufs = this.MIN_LUFS + bin / this.BINS_PER_DB;
-              const power = Math.pow(10, (lufs + 0.691) / 10);
-              sumPowers += count * power;
-              absGatedCount += count;
-            }
-          }
-
-          if (absGatedCount >= 20) {
-            const avgPowerAndDb = -0.691 + 10 * Math.log10(sumPowers / absGatedCount);
-            const relGateThreshold = avgPowerAndDb - 20;
-
-            const relGateThresholdBinIndex = Math.max(
-              absThresholdBinIndex + 1,
-              Math.ceil((relGateThreshold - this.MIN_LUFS) * this.BINS_PER_DB)
-            );
-
-            // Count ST blocks above relative threshold
-            let finalCount = 0;
-            for (let bin = relGateThresholdBinIndex; bin < this.NUM_BINS; bin++) {
-              finalCount += this.shortTermLUFSHistogram[bin];
-            }
-
-            if (finalCount >= 20) {
-              const idx10 = Math.floor(finalCount * 0.10);
-              const idx95 = Math.floor(finalCount * 0.95);
-
-              let cumulativeCount = 0;
-              let lufs10 = -120;
-              let lufs95 = -120;
-              let found10 = false;
-
-              for (let bin = relGateThresholdBinIndex; bin < this.NUM_BINS; bin++) {
-                const count = this.shortTermLUFSHistogram[bin];
-                if (count > 0) {
-                  cumulativeCount += count;
-                  if (!found10 && cumulativeCount >= idx10) {
-                    lufs10 = this.MIN_LUFS + bin / this.BINS_PER_DB;
-                    found10 = true;
-                  }
-                  if (cumulativeCount >= idx95) {
-                    lufs95 = this.MIN_LUFS + bin / this.BINS_PER_DB;
-                    break;
-                  }
-                }
-              }
-
-              this.lra = Math.max(0, lufs95 - lufs10);
-            }
-          }
-        }
-      }
-    }
-
-    // --- PHASE 5: Unweighted Decibel metrics / Crest is Peak to RMS ---
-    let totalUnweightedMSPower = 0;
-    for (let c = 0; c < numChannels; c++) {
-      const data = c === 0 ? rawDataL : rawDataR;
-      let sumOfSquares = 0;
-      for (let i = 0; i < data.length; i++) {
-        const s = data[i];
-        sumOfSquares += s * s;
-      }
-      totalUnweightedMSPower += sumOfSquares / data.length;
-    }
-    const rmsdB = 10 * Math.log10(totalUnweightedMSPower + 1e-12);
-    const crestFactor = Math.max(0, blockMaxPeak - rmsdB);
-
-    // --- PHASE 6: Phase Correlation on UNWEIGHTED signals ---
-    let phaseCorrelation = 1.0;
-    const denom = Math.sqrt(this.sLL * this.sRR);
-    if (denom > 1e-12) {
-      phaseCorrelation = this.sLR / denom;
-    }
-    // Display smoothing EMA (e.g., 100-150ms visual ballast)
-    const displayAlpha = 0.35;
-    this.smoothedPhaseCorrelation = this.smoothedPhaseCorrelation * (1 - displayAlpha) + phaseCorrelation * displayAlpha;
-    const finalPhaseCo = Math.max(-1.0, Math.min(1.0, this.smoothedPhaseCorrelation));
-
-    const currentMetrics = {
-      momentary: Math.max(-120, momentaryLUFS),
-      shortTerm: Math.max(-120, shortTermLUFS),
-      integrated: Math.max(-120, this.integratedLUFS),
-      lra: Math.max(0, this.lra),
-      maxMomentary: Math.max(-120, this.maxMomentary),
-      maxShortTerm: Math.max(-120, this.maxShortTerm),
-      peakLeft: Math.max(-120, peakDBL),
-      peakRight: Math.max(-120, peakDBR),
-      maxPeak: Math.max(-120, this.maxPeak),
-      crestFactor: Math.max(0, crestFactor),
-      phaseCorrelation: finalPhaseCo
-    };
-
-    this.port.postMessage({
-      type: 'METRICS',
-      metrics: currentMetrics
-    });
+  addPower(power, counts, powers) {
+    if (this.loudness(power) < -70) return;
+    const index = this.bin(power);
+    counts[index]++;
+    powers[index] += power;
   }
 
-  process(inputs, outputs, parameters) {
-    const inputUnweighted = inputs[0];
-    const inputKWeighted = inputs[1];
-    
-    // Check active unweighted signal array
-    if (!inputUnweighted || inputUnweighted.length === 0) return true;
-    const inputK = (inputKWeighted && inputKWeighted.length > 0) ? inputKWeighted : inputUnweighted;
+  gated(counts, powers, relativeGate) {
+    let count = 0, sum = 0;
+    for (let i = 5000; i < counts.length; i++) { count += counts[i]; sum += powers[i]; }
+    if (!count) return { loudness: -120, start: 5000, count: 0 };
+    const threshold = Math.max(-70, this.loudness(sum / count) + relativeGate);
+    const start = Math.ceil((threshold + 120) * 100);
+    count = 0; sum = 0;
+    for (let i = start; i < counts.length; i++) { count += counts[i]; sum += powers[i]; }
+    return { loudness: count ? this.loudness(sum / count) : -120, start, count };
+  }
 
-    const numChannels = inputUnweighted.length;
-    const inputChannelL = inputUnweighted[0];
-    const inputChannelR = numChannels >= 2 ? inputUnweighted[1] : inputChannelL;
-
-    const inputChannelLK = inputK[0];
-    const inputChannelRK = inputK.length >= 2 ? inputK[1] : inputChannelLK;
-
-    const length = inputChannelL.length;
-    for (let i = 0; i < length; i++) {
-      this.bufferL[this.writeIndex] = inputChannelLK[i];
-      if (numChannels >= 2) {
-        this.bufferR[this.writeIndex] = inputChannelRK[i];
-      } else {
-        this.bufferR[this.writeIndex] = inputChannelLK[i];
+  updateStatistics() {
+    this.integrated = this.gated(this.gateCounts, this.gatePowers, -10).loudness;
+    const range = this.gated(this.lraCounts, this.lraPowers, -20);
+    if (range.count) {
+      let cumulative = 0, low = null, high = null;
+      for (let i = range.start; i < this.lraCounts.length; i++) {
+        cumulative += this.lraCounts[i];
+        if (low === null && cumulative >= Math.max(1, Math.ceil(range.count * 0.1))) low = i;
+        if (cumulative >= Math.max(1, Math.ceil(range.count * 0.95))) { high = i; break; }
       }
-      
-      this.unweightedBufferL[this.writeIndex] = inputChannelL[i];
-      if (numChannels >= 2) {
-        this.unweightedBufferR[this.writeIndex] = inputChannelR[i];
-      } else {
-        this.unweightedBufferR[this.writeIndex] = inputChannelL[i];
+      this.lra = low !== null && high !== null ? (high - low) / 100 : 0;
+    }
+  }
+
+  process(inputs, outputs) {
+    const input = inputs[0];
+    if (!input || !input.length) return true;
+    const count = input.length;
+    while (this.channels.length < count) {
+      this.channels.push({ shelf: new Float64Array(2), hp: new Float64Array(2),
+        history: new Float64Array(12), position: 0, peak: 0, framePeak: 0, squareSum: 0 });
+    }
+    const b = this.shelf, h = this.highpass;
+    let statisticsUpdated = false;
+    for (let i = 0; i < input[0].length; i++) {
+      let power = 0;
+      for (let c = 0; c < count; c++) {
+        const channel = this.channels[c], x = input[c][i];
+        const shelf = b[0] * x + channel.shelf[0];
+        channel.shelf[0] = b[1] * x - b[3] * shelf + channel.shelf[1];
+        channel.shelf[1] = b[2] * x - b[4] * shelf;
+        const weighted = h[0] * shelf + channel.hp[0];
+        channel.hp[0] = h[1] * shelf - h[3] * weighted + channel.hp[1];
+        channel.hp[1] = h[2] * shelf - h[4] * weighted;
+        // Native WAV/Web Audio order: L R C [LFE] Ls Rs.
+        const weight = count === 6 && c === 3 ? 0 : (count === 5 && c >= 3) || (count === 6 && c >= 4) ? 1.41 : 1;
+        power += weight * weighted * weighted;
+        channel.squareSum += x * x;
+        channel.framePeak = Math.max(channel.framePeak, Math.abs(x));
+        let peak = Math.abs(x);
+        channel.history[channel.position] = x;
+        for (let phase = 0; phase < 4; phase++) {
+          let interpolated = 0;
+          for (let tap = 0; tap < 12; tap++) {
+            interpolated += this.tp[phase][tap] * channel.history[(channel.position - tap + 12) % 12];
+          }
+          peak = Math.max(peak, Math.abs(interpolated));
+        }
+        channel.position = (channel.position + 1) % 12;
+        channel.peak = Math.max(channel.peak, peak);
+        this.maxPeak = Math.max(this.maxPeak, peak);
       }
-
-      // Sample-by-sample 250ms exponential integration of correlation product and energy terms
-      const lVal = inputChannelL[i];
-      const rVal = numChannels >= 2 ? inputChannelR[i] : lVal;
-      const cAlpha = this.correlationAlpha;
-      this.sLR = this.sLR * (1.0 - cAlpha) + (lVal * rVal) * cAlpha;
-      this.sLL = this.sLL * (1.0 - cAlpha) + (lVal * lVal) * cAlpha;
-      this.sRR = this.sRR * (1.0 - cAlpha) + (rVal * rVal) * cAlpha;
-      
-      this.writeIndex++;
-
-      if (this.writeIndex === this.bufSize) {
-        this.writeIndex = 0;
-        this.calculateLoudness(numChannels);
+      const left = input[0][i], right = count === 1 ? left : input[1][i];
+      this.sLL += this.alpha * (left * left - this.sLL);
+      this.sRR += this.alpha * (right * right - this.sRR);
+      this.sLR += this.alpha * (left * right - this.sLR);
+      const delayedM = (this.position - this.mSize + this.sSize) % this.sSize;
+      this.mSum += power - this.powerRing[delayedM];
+      this.sSum += power - this.powerRing[this.position];
+      this.powerRing[this.position] = power;
+      this.position = (this.position + 1) % this.sSize;
+      this.samples++;
+      if (this.samples >= this.mSize) this.maxM = Math.max(this.maxM, this.mSum / this.mSize);
+      if (this.samples >= this.sSize) this.maxS = Math.max(this.maxS, this.sSum / this.sSize);
+      if (this.samples >= this.mSize && (this.samples - this.mSize) % this.hop === 0) {
+        this.addPower(Math.max(0, this.mSum / this.mSize), this.gateCounts, this.gatePowers);
+        if (this.samples >= this.sSize) this.addPower(Math.max(0, this.sSum / this.sSize), this.lraCounts, this.lraPowers);
+        this.updateStatistics();
+        statisticsUpdated = true;
       }
     }
-
-    for (let c = 0; c < numChannels; c++) {
-      if (outputs[0] && outputs[0][c] && inputs[0] && inputs[0][c]) {
-        outputs[0][c].set(inputs[0][c]);
-      }
+    this.samplesSinceMessage += input[0].length;
+    // Keep display traffic near the original rate; always publish completed gating blocks.
+    if (this.samplesSinceMessage < 2048 && !statisticsUpdated) return true;
+    const validPhase = count > 1 && this.sLL > 1e-12 && this.sRR > 1e-12;
+    let crest = 0;
+    for (let c = 0; c < count; c++) {
+      const channel = this.channels[c];
+      if (channel.squareSum > 1e-12) crest = Math.max(crest,
+        this.db(channel.framePeak) - 10 * Math.log10(channel.squareSum / this.samplesSinceMessage));
+      channel.squareSum = 0; channel.framePeak = 0;
     }
-
+    this.samplesSinceMessage = 0;
+    this.port.postMessage({ type: 'METRICS', metrics: {
+      momentary: this.samples >= this.mSize ? this.loudness(Math.max(0, this.mSum / this.mSize)) : -120,
+      shortTerm: this.samples >= this.sSize ? this.loudness(Math.max(0, this.sSum / this.sSize)) : -120,
+      integrated: this.integrated, lra: this.lra,
+      maxMomentary: this.loudness(this.maxM), maxShortTerm: this.loudness(this.maxS),
+      peakLeft: this.db(this.channels[0].peak), peakRight: count > 1 ? this.db(this.channels[1].peak) : -120,
+      maxPeak: this.db(this.maxPeak), crestFactor: crest,
+      phaseCorrelation: validPhase ? Math.max(-1, Math.min(1, this.sLR / Math.sqrt(this.sLL * this.sRR))) : 0,
+      phaseCorrelationValid: validPhase
+    }});
     return true;
   }
 }
-
 registerProcessor('loudness-processor', LoudnessProcessor);
 `;
 
@@ -1018,11 +672,11 @@ registerProcessor('loudness-processor', LoudnessProcessor);
   private buildPipeline() {
     const ctx = this.audioContext!;
 
-    // 1. Central upmixing gain node to handle mono-to-stereo conversion elegantly and safely
+    // 1. Unity measurement bus retains native channels, including mono and surround.
     this.preAnalysisGain = ctx.createGain();
     this.preAnalysisGain.gain.setValueAtTime(1.0, ctx.currentTime);
     this.preAnalysisGain.channelCount = 2;
-    this.preAnalysisGain.channelCountMode = 'explicit';
+    this.preAnalysisGain.channelCountMode = 'max';
     this.preAnalysisGain.channelInterpretation = 'discrete';
 
     // Core analyser (for standard spectrum displays, spectrograms, waveforms)
@@ -1052,39 +706,17 @@ registerProcessor('loudness-processor', LoudnessProcessor);
     this.gainNode.gain.setValueAtTime(isMic || this.outputMuted ? 0 : this.masterVolume, ctx.currentTime);
     this.preAnalysisGain.connect(this.gainNode);
 
-    // 3. ITU-R BS.1770 K-Weighting Filter Stage 1: High-shelving pre-filter
-    // Curve raises high frequencies about 4dB above ~1.68kHz representing acoustic effects of human head
-    this.kStage1Filter = ctx.createBiquadFilter();
-    this.kStage1Filter.type = 'highshelf';
-    this.kStage1Filter.frequency.setValueAtTime(1681.97445095553, ctx.currentTime);
-    this.kStage1Filter.gain.setValueAtTime(3.99981075489184, ctx.currentTime);
-    this.kStage1Filter.Q.setValueAtTime(0.707175236955733, ctx.currentTime);
-
-    // Filter Stage 2: RLB High-pass filter of 12dB/octave to roll off low frequencies below 38.1Hz
-    this.kStage2Filter = ctx.createBiquadFilter();
-    this.kStage2Filter.type = 'highpass';
-    this.kStage2Filter.frequency.setValueAtTime(38.1354708761398, ctx.currentTime);
-    this.kStage2Filter.Q.setValueAtTime(0.500327037332213, ctx.currentTime);
-
-    // Wire filters in series and connect upstream input
-    this.kStage1Filter.connect(this.kStage2Filter);
-    this.preAnalysisGain.connect(this.kStage1Filter);
-
-    // 4. Loudness calculation node: processes audio frames to calculate real-time RMS powers
-    // We process stereophonic (or monophonic) buffers inside AudioWorkletNode with 2 inputs:
-    // Input 0: Unweighted signal (for True Peak and Phase Correlation tracking)
-    // Input 1: K-Weighted signal (for BS.1770 LUFS and LRA calculations)
+    // Preserve native channels; calibrated K-weighting runs per channel in the worklet.
     if (ctx.audioWorklet) {
       try {
         this.loudnessAnalyser = new AudioWorkletNode(ctx, 'loudness-processor', {
-          numberOfInputs: 2,
+          numberOfInputs: 1,
           numberOfOutputs: 1,
           outputChannelCount: [2]
         });
         this.loudnessAnalyser.channelCount = 2;
-        this.loudnessAnalyser.channelCountMode = 'explicit';
-        this.loudnessAnalyser.channelInterpretation = 'speakers';
-        this.kStage2Filter.connect(this.loudnessAnalyser, 0, 1);
+        this.loudnessAnalyser.channelCountMode = 'max';
+        this.loudnessAnalyser.channelInterpretation = 'discrete';
         this.preAnalysisGain.connect(this.loudnessAnalyser, 0, 0);
         
         // We route AudioWorklet's output directly to dummy destination (needs connection to tick in certain engines)

@@ -70,10 +70,11 @@ export interface LoudnessMetrics {
   lra: number;            // Loudness Range (LU)
   maxMomentary: number;   // Maximum Momentary (LUFS)
   maxShortTerm: number;   // Maximum Short-term (LUFS)
-  peakLeft: number;       // Peak value left channel (dBFS)
-  peakRight: number;      // Peak value right channel (dBFS)
-  maxPeak: number;        // Max peak overall (dBFS)
+  peakLeft: number;       // True peak left channel (dBTP)
+  peakRight: number;      // True peak right channel (dBTP)
+  maxPeak: number;        // Max true peak across all channels (dBTP)
   crestFactor: number;    // Crest factor (dB)
+  phaseCorrelationValid?: boolean; // False when either measured channel is silent
   phaseCorrelation: number; // Phase correlation status (-1 to +1)
 }
 
