@@ -119,28 +119,22 @@ export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; fir
       return { bpm: 0, firstBeatTime: 0 };
     }
 
-    // Autocorrelation over range 60 - 200 BPM using zero-mean novelty for maximum peak contrast
+    // Autocorrelation over range 60 - 200 BPM
     const fps = effectiveRate / hopSize;
     const minBpm = 60;
     const maxBpm = 200;
     const minLag = Math.max(1, Math.floor((60 / maxBpm) * fps));
     const maxLag = Math.min(numFrames - 2, Math.ceil((60 / minBpm) * fps));
 
-    const meanNovelty = sumNovelty / numFrames;
-    const normNovelty = new Float32Array(numFrames);
-    for (let i = 0; i < numFrames; i++) {
-      normNovelty[i] = novelty[i] - meanNovelty;
-    }
-
     const corrScores = new Float32Array(maxLag + 1);
     let bestLag = minLag;
-    let maxScore = -Infinity;
+    let maxScore = -1;
 
     for (let lag = minLag; lag <= maxLag; lag++) {
       let sum = 0;
       let count = 0;
       for (let i = 0; i < numFrames - lag; i++) {
-        sum += normNovelty[i] * normNovelty[i + lag];
+        sum += novelty[i] * novelty[i + lag];
         count++;
       }
       const rawCorr = count > 0 ? sum / count : 0;
@@ -152,16 +146,16 @@ export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; fir
       }
     }
 
-    // If correlation peak is too weak or negative, evidence is insufficient
-    if (maxScore <= 0 || maxScore < (sumNovelty / numFrames) * 0.05) {
+    // If correlation peak is too weak, evidence is insufficient
+    if (maxScore <= 0 || maxScore < (sumNovelty / numFrames) * 0.1) {
       return { bpm: 0, firstBeatTime: 0 };
     }
 
-    // Octave disambiguation: check if half-lag (fundamental pulse) has a strong peak
+    // Octave disambiguation: check half-tempo and double-tempo harmonics with local neighborhood search
     const findLocalPeak = (scores: Float32Array, targetLag: number) => {
       let best = targetLag;
-      let max = -Infinity;
-      for (let l = targetLag - 2; l <= targetLag + 2; l++) {
+      let max = -1;
+      for (let l = targetLag - 1; l <= targetLag + 1; l++) {
         if (l >= minLag && l <= maxLag && scores[l] > max) {
           max = scores[l];
           best = l;
@@ -172,22 +166,36 @@ export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; fir
 
     let finalLag = bestLag;
     const halfTarget = Math.round(bestLag / 2);
-    if (halfTarget >= minLag) {
-      const halfPeak = findLocalPeak(corrScores, halfTarget);
-      // If half-lag peak has >= 75% of max correlation, the true beat pulse is the faster fundamental
-      if (halfPeak.score >= maxScore * 0.75) {
+    const halfPeak = findLocalPeak(corrScores, halfTarget);
+
+    if (halfPeak.lag >= minLag && halfPeak.score > maxScore * 0.70) {
+      // Half lag corresponds to double tempo. Favor standard range (85 - 175 BPM).
+      const currentBpm = (60 * fps) / bestLag;
+      const doubleBpm = (60 * fps) / halfPeak.lag;
+      if (currentBpm < 85 && doubleBpm <= 175) {
         finalLag = halfPeak.lag;
+      }
+    } else {
+      const doubleTarget = bestLag * 2;
+      const doublePeak = findLocalPeak(corrScores, doubleTarget);
+      if (doublePeak.lag <= maxLag && doublePeak.score > maxScore * 0.70) {
+        // Double lag corresponds to half tempo.
+        const currentBpm = (60 * fps) / bestLag;
+        const halfBpm = (60 * fps) / doublePeak.lag;
+        if (currentBpm > 165 && halfBpm >= 75) {
+          finalLag = doublePeak.lag;
+        }
       }
     }
 
-    // Parabolic sub-lag interpolation for fine sub-frame precision
+    // Parabolic sub-lag interpolation for high precision
     let refinedLag = finalLag;
     if (finalLag > minLag && finalLag < maxLag) {
       const y0 = corrScores[finalLag - 1];
       const y1 = corrScores[finalLag];
       const y2 = corrScores[finalLag + 1];
       const denom = y0 - 2 * y1 + y2;
-      if (denom < 0 && Math.abs(denom) > 1e-12) {
+      if (Math.abs(denom) > 1e-12) {
         const delta = (y0 - y2) / (2 * denom);
         if (Math.abs(delta) < 1) {
           refinedLag = finalLag + delta;

@@ -22,9 +22,7 @@ import {
   Snowflake,
   Activity,
   Layers,
-  Sparkles,
-  HelpCircle,
-  X
+  Sparkles
 } from 'lucide-react';
 import { audioAnalyzer, useStreamMetadata } from '../audioEngine';
 import { AnalyzerConfig } from '../types';
@@ -85,9 +83,6 @@ export function DJWaveformDeck({
   const [beatFlash, setBeatFlash] = useState<boolean>(false);
   const [tapTimes, setTapTimes] = useState<number[]>([]);
   const [isTapActive, setIsTapActive] = useState<boolean>(false);
-  const [showDefinitionModal, setShowDefinitionModal] = useState<boolean>(false);
-  const [definitionTab, setDefinitionTab] = useState<'MONITOR' | 'GRID_ANALYSIS'>('MONITOR');
-  const [timeDisplayMode, setTimeDisplayMode] = useState<'elapsed' | 'remaining'>('elapsed');
 
   // Manual edit locks and race condition tokens
   const isManualBpmRef = useRef<boolean>(false);
@@ -363,16 +358,6 @@ export function DJWaveformDeck({
       setBpmInputVal(next.toFixed(2));
       return next;
     });
-  };
- 
-  // Halve or double the BPM (octave shift)
-  const handleMultiplyBpm = (multiplier: 0.5 | 2.0) => {
-    if (bpm <= 0 || isGridLocked) return;
-    const nextBpm = Math.max(30, Math.min(300, Math.round(bpm * multiplier * 100) / 100));
-    isManualBpmRef.current = true;
-    setBpmSource('manual');
-    setBpm(nextBpm);
-    setBpmInputVal(nextBpm.toFixed(2));
   };
 
   // Set downbeat (Beat 1) at current playhead position (aligned to 4-beat bar)

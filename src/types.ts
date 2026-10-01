@@ -85,15 +85,6 @@ export interface FrequencyMarker {
   color?: string;
 }
 
-export enum FFTWindowFunction {
-  BLACKMAN_HARRIS = 'blackman_harris',
-  HANN = 'hann',
-  HAMMING = 'hamming',
-  BLACKMAN = 'blackman',
-  FLAT_TOP = 'flat_top',
-  RECTANGULAR = 'rectangular'
-}
-
 export interface AnalyzerConfig {
   fftSize: number;
   smoothing: number;
@@ -108,7 +99,6 @@ export interface AnalyzerConfig {
   splitWaterfall: boolean;
   peakHoldDecay: number; // peak decay duration (ms), e.g. 500, 1000, 2000, 999999 for infinite
   waveformPalette: 'void' | 'rgb' | 'blue' | '3-band';
-  fftWindow?: FFTWindowFunction; // FFT windowing function (Hann, Hamming, Blackman-Harris, etc.)
   customColors?: {
     primary: string;
     secondary: string;

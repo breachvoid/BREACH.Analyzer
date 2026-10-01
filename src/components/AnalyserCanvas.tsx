@@ -183,8 +183,8 @@ interface AnalyserCanvasProps {
 }
 
 interface WaveformOscilloscopeDeckHeaderProps {
-  secondaryMode: 'split' | 'spectrogram' | 'oscilloscope' | 'waveform';
-  setSecondaryMode: (mode: 'split' | 'spectrogram' | 'oscilloscope') => void;
+  secondaryMode: 'split' | 'waveform' | 'oscilloscope';
+  setSecondaryMode: (mode: 'split' | 'waveform' | 'oscilloscope') => void;
   isDeckFrozen: boolean;
   onToggleFreeze: () => void;
   oscTimebase: number;
@@ -224,7 +224,7 @@ const WaveformOscilloscopeDeckHeader: React.FC<WaveformOscilloscopeDeckHeaderPro
             <Waves className="w-4 h-4 text-[#b20000]" />
           </div>
           <h2 className="text-xs font-semibold tracking-[1.4px] text-[#F2F2F2] font-sans uppercase">
-            Spectrogram / Oscilloscope Deck
+            Waveform / Oscilloscope Deck
           </h2>
         </div>
 
@@ -237,13 +237,13 @@ const WaveformOscilloscopeDeckHeader: React.FC<WaveformOscilloscopeDeckHeaderPro
           <span className="text-[#B8B8B8] pl-1 text-[11px] font-sans font-medium uppercase tracking-[1px]">Mode:</span>
           <select
             id="select-deck2-mode-dropdown"
-            value={secondaryMode === 'waveform' ? 'spectrogram' : secondaryMode}
-            onChange={(e) => setSecondaryMode(e.target.value as 'split' | 'spectrogram' | 'oscilloscope')}
+            value={secondaryMode}
+            onChange={(e) => setSecondaryMode(e.target.value as 'split' | 'waveform' | 'oscilloscope')}
             className="bg-transparent border-0 text-[#F2F2F2] focus:outline-none cursor-pointer font-sans text-[11px] font-medium uppercase tracking-[1px] pr-1"
           >
-            <option value="spectrogram" className="bg-[#181818]">Spectrogram</option>
+            <option value="waveform" className="bg-[#181818]">Waveform</option>
+            <option value="split" className="bg-[#181818]">Split</option>
             <option value="oscilloscope" className="bg-[#181818]">Oscilloscope</option>
-            <option value="split" className="bg-[#181818]">Split (Spectrogram / Osc)</option>
           </select>
         </div>
 
@@ -409,10 +409,10 @@ export function AnalyserCanvas({
   onlyRenderSplit = false,
   hideSplitWaterfall = false
 }: AnalyserCanvasProps) {
-  const [secondaryMode, setSecondaryMode] = usePersistentState<'split' | 'spectrogram' | 'oscilloscope' | 'waveform'>(
+  const [secondaryMode, setSecondaryMode] = usePersistentState<'split' | 'waveform' | 'oscilloscope'>(
     'breach_secondary_deck_mode',
-    'spectrogram',
-    (val) => val === 'split' || val === 'spectrogram' || val === 'oscilloscope' || val === 'waveform'
+    'waveform',
+    (val) => val === 'split' || val === 'waveform' || val === 'oscilloscope'
   );
 
   // Oscilloscope Trigger Threshold state (-90% to +90%, 0 = center zero-crossing)
@@ -1181,15 +1181,12 @@ export function AnalyserCanvas({
               const pausedTime = (isDeckFrozenRef.current && frozenTimeDataRef.current)
                 ? frozenTimeDataRef.current
                 : (byteTimeArrayRef.current || new Uint8Array(2048).fill(128));
-              const pausedFreq = floatFreqArrayRef.current || new Float32Array(2048).fill(-120);
               renderWaveformScopeDeck(
                 wCtx,
                 wWidth,
                 wHeight,
                 pausedTime,
-                pausedFreq,
                 pausedTime.length,
-                audioAnalyzer.getContext()?.sampleRate || 48000,
                 palette,
                 deck2ShowGrid,
                 secondaryMode,
@@ -1433,9 +1430,7 @@ export function AnalyserCanvas({
               wWidth,
               wHeight,
               dataToRender,
-              freqData,
               totalBins,
-              sampleRate,
               palette,
               deck2ShowGrid,
               secondaryMode,
