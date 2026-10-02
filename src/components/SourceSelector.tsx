@@ -113,6 +113,7 @@ export function SourceSelector({
   const [fileCurrentTime, setFileCurrentTime] = useState<number>(0);
   const [dragActive, setDragActive] = useState<boolean>(false);
   const metaRequestIdRef = useRef<number>(0);
+  const trackSelectionReqIdRef = useRef<number>(0);
 
   const [activeDropdown, setActiveDropdown] = useState<AudioSourceType | null>(null);
   const [hoveredDropdown, setHoveredDropdown] = useState<AudioSourceType | null>(null);
@@ -397,14 +398,17 @@ export function SourceSelector({
     
     // If the engine is already active, or if autoPlay is explicitly requested (like in autoplayNext)
     const shouldPlay = isPlaying || autoPlay;
+    const reqId = ++trackSelectionReqIdRef.current;
 
     if (shouldPlay) {
       setTimeout(async () => {
+        if (reqId !== trackSelectionReqIdRef.current) return;
         if (audioRef.current) {
           try {
             await audioAnalyzer.startSource(AudioSourceType.AUDIO_FILE, {
               element: audioRef.current
             });
+            if (reqId !== trackSelectionReqIdRef.current) return;
             audioRef.current.play().catch((err) => {
               console.warn('Playback error (needs user gesture):', err);
             });
@@ -1272,6 +1276,7 @@ export function SourceSelector({
       <audio 
         ref={audioRef}
         onTimeUpdate={onTimeUpdate}
+        onSeeked={onTimeUpdate}
         onLoadedMetadata={onLoadedMetadata}
         onPlay={() => setIsPlaybackActive(true)}
         onPause={() => setIsPlaybackActive(false)}

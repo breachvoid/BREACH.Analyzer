@@ -28,6 +28,7 @@ import { audioAnalyzer, useStreamMetadata } from '../audioEngine';
 import { AnalyzerConfig } from '../types';
 import { PopOutButton, ResetButton } from './SharedButtons';
 import { detectBpmFromAudio, detectKeyFromAudio } from '../utils/audioAnalysis';
+import { AudioFileRegistry } from '../utils';
 
 export interface DJWaveformDeckProps {
   fileUrl?: string;
@@ -70,9 +71,7 @@ export function DJWaveformDeck({
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const [bpm, setBpm] = useState<number>(0);
-  const [bpmSource, setBpmSource] = useState<'auto' | 'manual' | 'none'>('none');
-  const [isBpmEditing, setIsBpmEditing] = useState<boolean>(false);
-  const [bpmInputVal, setBpmInputVal] = useState<string>('---');
+  const [bpmSource, setBpmSource] = useState<'auto' | 'none'>('none');
   const [musicalKey, setMusicalKey] = useState<string>('Unknown');
   const [camelotKey, setCamelotKey] = useState<string>('—');
   const [gridOffset, setGridOffset] = useState<number>(0);
@@ -81,11 +80,8 @@ export function DJWaveformDeck({
   const [activeTab, setActiveTab] = useState<'MONITOR' | 'GRID_ANALYSIS'>('GRID_ANALYSIS');
   const [isFrozen, setIsFrozen] = useState<boolean>(false);
   const [beatFlash, setBeatFlash] = useState<boolean>(false);
-  const [tapTimes, setTapTimes] = useState<number[]>([]);
-  const [isTapActive, setIsTapActive] = useState<boolean>(false);
 
-  // Manual edit locks and race condition tokens
-  const isManualBpmRef = useRef<boolean>(false);
+  // Manual grid phase lock and race condition tokens
   const isManualGridRef = useRef<boolean>(false);
   const decodeRequestIdRef = useRef<number>(0);
 
@@ -118,11 +114,10 @@ export function DJWaveformDeck({
   const lastBeatTimeRef = useRef<number>(0);
   const beatIntervalsRef = useRef<number[]>([]);
 
-  // 1. Pre-decode Track Audio when fileUrl changes
+  // 1. Pre-decode Track Audio when fileUrl changes - Procure Rekordbox BPM & Key automatically
   useEffect(() => {
     if (!fileUrl) return;
 
-    isManualBpmRef.current = false;
     isManualGridRef.current = false;
     const reqId = ++decodeRequestIdRef.current;
     let isMounted = true;
@@ -130,27 +125,43 @@ export function DJWaveformDeck({
     const decodeTrack = async () => {
       try {
         const audioCtx = audioAnalyzer.getContext() || audioAnalyzer.initContext();
-        const res = await fetch(fileUrl);
-        const arrayBuf = await res.arrayBuffer();
-        const audioBuf = await audioCtx.decodeAudioData(arrayBuf.slice(0));
+        let arrayBuf: ArrayBuffer;
+        const registered = AudioFileRegistry.get(fileUrl);
+        if (registered) {
+          arrayBuf = await registered.arrayBuffer();
+        } else {
+          const res = await fetch(fileUrl);
+          if (!res.ok) throw new Error(`HTTP error ${res.status} fetching audio file`);
+          arrayBuf = await res.arrayBuffer();
+        }
+
+        const audioBuf = await new Promise<AudioBuffer>((resolve, reject) => {
+          try {
+            const p = audioCtx.decodeAudioData(arrayBuf.slice(0), resolve, reject);
+            if (p && typeof p.then === 'function') {
+              p.then(resolve).catch(reject);
+            }
+          } catch (err) {
+            reject(err);
+          }
+        });
 
         if (!isMounted || reqId !== decodeRequestIdRef.current) return;
 
         const dur = audioBuf.duration;
         setDuration(dur);
 
-        // Accurately analyze BPM and Musical Key on loaded audio
+        // Procure exact BPM and Musical Key automatically on loaded audio using Rekordbox methodology
         const bpmAnalysis = detectBpmFromAudio(audioBuf);
         const keyAnalysis = detectKeyFromAudio(audioBuf);
 
-        if (!isManualBpmRef.current) {
-          setBpm(bpmAnalysis.bpm);
-          setBpmInputVal(bpmAnalysis.bpm > 0 ? bpmAnalysis.bpm.toFixed(2) : '---');
-          setBpmSource(bpmAnalysis.bpm > 0 ? 'auto' : 'none');
-        }
+        console.debug('[AudioAnalysis:Rekordbox] Auto-procured tempo from file:', bpmAnalysis.bpm, bpmAnalysis.diagnostics);
+        setBpm(bpmAnalysis.bpm);
+        setBpmSource(bpmAnalysis.bpm > 0 ? 'auto' : 'none');
         if (!isManualGridRef.current) {
           setGridOffset(bpmAnalysis.firstBeatTime);
         }
+        console.debug('[AudioAnalysis:Key Lifecycle] Applied key detection:', keyAnalysis.musicalKey, keyAnalysis.camelot, keyAnalysis.diagnostics);
         setMusicalKey(keyAnalysis.musicalKey);
         setCamelotKey(keyAnalysis.camelot);
 
@@ -313,51 +324,11 @@ export function DJWaveformDeck({
     return `${barNum}.${beatInBar}Bars`;
   }, [currentTime, bpm, gridOffset]);
 
-  // Tap tempo handler
-  const handleTapTempo = () => {
-    const now = performance.now();
-    setIsTapActive(true);
-    setTimeout(() => setIsTapActive(false), 120);
-
-    const recentTaps = [...tapTimes, now].filter(t => now - t < 3000);
-    setTapTimes(recentTaps);
-
-    if (recentTaps.length >= 2) {
-      const intervals: number[] = [];
-      for (let i = 1; i < recentTaps.length; i++) {
-        intervals.push(recentTaps[i] - recentTaps[i - 1]);
-      }
-      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-      if (avgInterval > 0) {
-        const calculatedBpm = Math.round((60000 / avgInterval) * 100) / 100;
-        if (calculatedBpm >= 60 && calculatedBpm <= 220) {
-          isManualBpmRef.current = true;
-          setBpm(calculatedBpm);
-          setBpmSource('manual');
-          setBpmInputVal(calculatedBpm.toFixed(2));
-        }
-      }
-    }
-  };
-
-  // Nudge beatgrid left / right
+  // Nudge beatgrid phase left / right (5ms)
   const handleNudgeGrid = (direction: 'left' | 'right') => {
     const step = 0.005; // 5ms
     isManualGridRef.current = true;
     setGridOffset(prev => prev + (direction === 'right' ? step : -step));
-  };
-
-  // Stretch / compress beatgrid
-  const handleStretchGrid = (direction: 'compress' | 'expand') => {
-    const bpmDelta = direction === 'expand' ? -0.1 : 0.1;
-    isManualBpmRef.current = true;
-    setBpmSource('manual');
-    setBpm(prev => {
-      const base = prev > 0 ? prev : 120;
-      const next = Math.max(50, Math.min(240, Math.round((base + bpmDelta) * 100) / 100));
-      setBpmInputVal(next.toFixed(2));
-      return next;
-    });
   };
 
   // Set downbeat (Beat 1) at current playhead position (aligned to 4-beat bar)
@@ -906,18 +877,6 @@ export function DJWaveformDeck({
     window.addEventListener('mouseup', onMouseUp);
   };
 
-  const handleBpmSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const val = parseFloat(bpmInputVal);
-    if (!isNaN(val) && val >= 40 && val <= 240) {
-      isManualBpmRef.current = true;
-      setBpmSource('manual');
-      setBpm(Math.round(val * 100) / 100);
-    } else {
-      setBpmInputVal(bpm > 0 ? bpm.toFixed(2) : '---');
-    }
-    setIsBpmEditing(false);
-  };
 
   // Audio Format Badge
   const audioFormatBadge = useMemo(() => {
@@ -993,16 +952,15 @@ export function DJWaveformDeck({
               <span className="text-[10px] uppercase font-sans font-medium text-[#858585] tracking-wider flex items-center gap-1">
                 <span className={`w-1.5 h-1.5 rounded-full transition-all duration-75 ${beatFlash ? 'bg-[#00BFFF] scale-150 shadow-[0_0_8px_#00BFFF]' : 'bg-[#333333]'}`} />
                 TEMPO
-                {bpmSource !== 'none' && (
-                  <span className={`text-[8px] font-sans font-bold px-1 py-0.5 ${bpmSource === 'manual' ? 'bg-[#ff9900]/20 text-[#ff9900]' : 'bg-[#00BFFF]/20 text-[#00BFFF]'}`}>
-                    {bpmSource.toUpperCase()}
+                {bpmSource === 'auto' && (
+                  <span className="text-[8px] font-sans font-bold px-1 py-0.5 bg-[#00BFFF]/20 text-[#00BFFF]">
+                    AUTO
                   </span>
                 )}
               </span>
               <span 
-                className="text-[15px] font-mono font-semibold text-[#F2F2F2] tabular-nums tracking-wide cursor-pointer hover:text-[#00BFFF] transition-colors"
-                title={`Click to manually edit BPM (${bpmSource === 'manual' ? 'Manual Edit' : bpmSource === 'auto' ? 'Auto-detected' : 'Unavailable'})`}
-                onClick={() => setIsBpmEditing(true)}
+                className="text-[15px] font-mono font-semibold text-[#F2F2F2] tabular-nums tracking-wide select-none"
+                title={`Rekordbox Auto-Detected Tempo: ${bpm > 0 ? bpm.toFixed(2) + ' BPM' : 'Unavailable'}`}
               >
                 {bpm > 0 ? bpm.toFixed(2) : '---'}
               </span>
@@ -1224,101 +1182,36 @@ export function DJWaveformDeck({
               <span>SET DOWNBEAT</span>
             </button>
 
-            {/* Editable BPM Input Box */}
-            {isBpmEditing ? (
-              <form onSubmit={handleBpmSubmit} className="inline-flex">
-                <input
-                  type="text"
-                  value={bpmInputVal}
-                  onChange={(e) => setBpmInputVal(e.target.value)}
-                  onBlur={() => {
-                    const val = parseFloat(bpmInputVal);
-                    if (!isNaN(val) && val >= 40 && val <= 240) {
-                      isManualBpmRef.current = true;
-                      setBpmSource('manual');
-                      setBpm(Math.round(val * 100) / 100);
-                    } else {
-                      setBpmInputVal(bpm > 0 ? bpm.toFixed(2) : '---');
-                    }
-                    setIsBpmEditing(false);
-                  }}
-                  autoFocus
-                  className="w-16 h-7 bg-[#121212] border border-[#00BFFF] px-1 text-center font-mono font-medium text-[#F2F2F2] text-[11px] focus:outline-none"
-                />
-              </form>
-            ) : (
-              <div 
-                onClick={() => !isGridLocked && setIsBpmEditing(true)}
-                className={`h-7 px-2.5 bg-[#141414] border border-[#3a3a3a] flex items-center justify-center font-mono font-medium text-[#F2F2F2] text-[11px] cursor-pointer hover:border-[#666666] select-none ${
-                  isGridLocked ? 'cursor-default' : 'hover:border-[#00BFFF]'
-                }`}
-                title="Click to edit grid tempo manually"
-              >
-                {bpm > 0 ? bpm.toFixed(2) + ' BPM' : '--- BPM'}
-              </div>
-            )}
-
-            {/* TAP Tempo Button */}
-            <button
-              type="button"
-              onClick={handleTapTempo}
-              disabled={isGridLocked}
-              className={`h-7 px-2.5 text-[11px] font-medium uppercase tracking-[0.8px] border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                isTapActive 
-                  ? 'bg-[#00BFFF] border-[#00BFFF] text-black font-semibold' 
-                  : 'bg-[#141414] border-[#3a3a3a] text-[#B8B8B8] hover:text-[#F2F2F2] hover:border-[#666666]'
-              }`}
-              title="Tap repeatedly on rhythm to measure BPM"
-              id="btn-tap-tempo"
+            {/* Auto-Procured Rekordbox BPM Badge */}
+            <div 
+              className="h-7 px-3 bg-[#121212] border border-[#2a2a2a] flex items-center justify-center font-mono font-semibold text-[#00BFFF] text-[11px] select-none gap-1.5"
+              title="Tempo procured automatically on track load using Rekordbox multi-band comb filter analysis"
             >
-              TAP
-            </button>
+              <span className="text-[9px] uppercase tracking-wider text-[#858585] font-sans font-medium">REKORDBOX:</span>
+              <span>{bpm > 0 ? bpm.toFixed(2) + ' BPM' : '--- BPM'}</span>
+            </div>
 
-            {/* Nudge Left / Right Buttons */}
+            {/* Nudge Left / Right Buttons (5ms phase shift) */}
             <div className="flex items-center bg-[#141414] border border-[#3a3a3a] h-7">
               <button
                 type="button"
                 onClick={() => handleNudgeGrid('left')}
                 disabled={isGridLocked}
-                className="px-2 h-full text-[#B8B8B8] hover:text-[#F2F2F2] border-r border-[#3a3a3a] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-mono text-[11px]"
-                title="Nudge beat grid phase left"
+                className="px-2.5 h-full text-[#B8B8B8] hover:text-[#F2F2F2] border-r border-[#3a3a3a] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-mono text-[11px]"
+                title="Nudge beat grid phase left 5ms"
                 id="btn-nudge-grid-left"
               >
-                ◀ |||
+                ◀ 5ms
               </button>
               <button
                 type="button"
                 onClick={() => handleNudgeGrid('right')}
                 disabled={isGridLocked}
-                className="px-2 h-full text-[#B8B8B8] hover:text-[#F2F2F2] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-mono text-[11px]"
-                title="Nudge beat grid phase right"
+                className="px-2.5 h-full text-[#B8B8B8] hover:text-[#F2F2F2] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-mono text-[11px]"
+                title="Nudge beat grid phase right 5ms"
                 id="btn-nudge-grid-right"
               >
-                ||| ▶
-              </button>
-            </div>
-
-            {/* Stretch / Compress Grid */}
-            <div className="flex items-center bg-[#141414] border border-[#3a3a3a] h-7">
-              <button
-                type="button"
-                onClick={() => handleStretchGrid('compress')}
-                disabled={isGridLocked}
-                className="px-2 h-full text-[#B8B8B8] hover:text-[#F2F2F2] border-r border-[#3a3a3a] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-mono text-[11px]"
-                title="Compress beat spacing (Fine BPM +)"
-                id="btn-compress-grid"
-              >
-                ◀ |||*
-              </button>
-              <button
-                type="button"
-                onClick={() => handleStretchGrid('expand')}
-                disabled={isGridLocked}
-                className="px-2 h-full text-[#B8B8B8] hover:text-[#F2F2F2] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-mono text-[11px]"
-                title="Expand beat spacing (Fine BPM -)"
-                id="btn-expand-grid"
-              >
-                *||| ▶
+                5ms ▶
               </button>
             </div>
           </div>

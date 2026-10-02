@@ -9,7 +9,8 @@ import {
   AudioSourceType, 
   VisualizerMode, 
   FrequencyScale, 
-  LoudnessStandard 
+  LoudnessStandard,
+  FFTWindowFunction 
 } from './types';
 import { audioAnalyzer, useStreamMetadata, useAudioMetrics, useAnalyzerState } from './audioEngine';
 import { AnalyserCanvas } from './components/AnalyserCanvas';
@@ -58,6 +59,7 @@ const DEFAULT_ANALYZER_CONFIG: AnalyzerConfig = {
   splitWaterfall: true,
   peakHoldDecay: 1000,
   waveformPalette: 'rgb',
+  fftWindow: FFTWindowFunction.HANN,
   frequencyMarkers: [
     { id: 'marker_sub', frequency: 60, label: 'SUB' },
     { id: 'marker_kick', frequency: 120, label: 'BASS' },
