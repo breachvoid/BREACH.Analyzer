@@ -350,14 +350,12 @@ export const VisualSettingsPanel: React.FC<VisualSettingsPanelProps> = ({
               Spectrum Style
             </span>
             <select
-              value={config.visualizerMode}
+              value={config.visualizerMode === VisualizerMode.SPECTRUM_CURVE ? VisualizerMode.SPECTRUM_CURVE : VisualizerMode.SPECTRUM_BARS}
               onChange={(e) => setConfig(prev => ({ ...prev, visualizerMode: e.target.value as VisualizerMode }))}
               className="bg-[#121212] border border-[#4a4a4a] text-[#F2F2F2] text-[11px] font-sans font-medium uppercase p-1.5 focus:outline-none cursor-pointer"
             >
               <option value={VisualizerMode.SPECTRUM_BARS}>Vertical Bars</option>
-              <option value={VisualizerMode.SPECTRUM_CURVE}>Smooth Curve</option>
-              <option value={VisualizerMode.SPECTROGRAM}>Spectrogram</option>
-              <option value={VisualizerMode.WAVEFORM}>Waveform (Oscilloscope)</option>
+              <option value={VisualizerMode.SPECTRUM_CURVE}>Curve</option>
             </select>
           </div>
 

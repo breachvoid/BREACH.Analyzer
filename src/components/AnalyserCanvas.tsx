@@ -49,13 +49,13 @@ const DEFAULT_PRESETS: PresetItem[] = [
     }
   },
   {
-    id: 'high_res_spectrogram',
-    name: 'Spectrogram (Waterfall)',
+    id: 'high_res_curve',
+    name: 'High-Res Curve',
     isCustom: false,
     config: {
       fftSize: 2048,
       smoothing: 0.80,
-      visualizerMode: VisualizerMode.SPECTROGRAM,
+      visualizerMode: VisualizerMode.SPECTRUM_CURVE,
       frequencyScale: FrequencyScale.LINEAR,
       colorPalette: 'synthwave',
       showGrid: false,
@@ -1193,7 +1193,7 @@ export function AnalyserCanvas({
                 palette,
                 deck2ShowGrid,
                 secondaryMode,
-                isDeckFrozenRef.current,
+                true,
                 oscTriggerThresholdRef.current,
                 oscTimebaseRef.current
               );
@@ -1376,21 +1376,15 @@ export function AnalyserCanvas({
         ctx.translate(plotLeft, 0);
         ctx.scale(scaleX, scaleY);
 
-        // Draw selected top visualizer graphics
-        if (topMode === VisualizerMode.SPECTRUM_BARS) {
-          drawSpectrumBars(ctx, width, height, freqData, totalBins, sampleRate, palette);
-        } else if (topMode === VisualizerMode.SPECTRUM_CURVE) {
+        // Draw selected top visualizer graphics (Spectrum Deck: Vertical Bars or Curve)
+        if (topMode === VisualizerMode.SPECTRUM_CURVE) {
           drawSpectrumCurve(ctx, width, height, freqData, totalBins, sampleRate, palette, curveHistoryRef.current);
-        } else if (topMode === VisualizerMode.WAVEFORM) {
-          drawTimeDomainOsc(ctx, width, height, timeData, totalBins, palette);
-        } else if (topMode === VisualizerMode.SPECTROGRAM) {
-          drawSpectrogramScroll(ctx, width, height, freqData, totalBins, sampleRate, palette, spectrogramPrimaryCanvasRef, false);
-        } else if (topMode === VisualizerMode.HEATMAP) {
-          drawHeatmapVertical(ctx, width, height, freqData, totalBins, sampleRate, palette, heatmapCanvasRef);
+        } else {
+          drawSpectrumBars(ctx, width, height, freqData, totalBins, sampleRate, palette);
         }
 
-        // Draw historical spectral peaks overlay (Requirement 3)
-        if (showHistory && topMode !== VisualizerMode.WAVEFORM && topMode !== VisualizerMode.SPECTROGRAM && topMode !== VisualizerMode.HEATMAP) {
+        // Draw historical spectral peaks overlay
+        if (showHistory) {
           drawSpectralPeaksHistory(ctx, width, height, totalBins, sampleRate, palette);
         }
 
@@ -1398,12 +1392,10 @@ export function AnalyserCanvas({
         ctx.restore();
 
         // Draw standard measurement grid and vertical dB values (OUTSIDE scaled block for perfect margins)
-        if (topMode !== VisualizerMode.WAVEFORM && topMode !== VisualizerMode.HEATMAP) {
-          drawGridLines(ctx, width, height, palette, deck1ShowGrid);
-        }
+        drawGridLines(ctx, width, height, palette, deck1ShowGrid);
 
         // Draw hover interactivity crosshair badge if active (rendered unscaled to prevent squished text)
-        if (hoverData && topMode !== VisualizerMode.WAVEFORM) {
+        if (hoverData) {
           // Restrict hover drawing to within the active spectrum bounds
           if (hoverData.x >= plotLeft && hoverData.x <= plotLeft + plotWidth && hoverData.y >= 0 && hoverData.y <= plotHeight) {
             drawHoverCrosshair(ctx, width, height, hoverData, palette);
@@ -1465,10 +1457,11 @@ export function AnalyserCanvas({
       width: number,
       height: number,
       palette: any,
-      showInnerGrid: boolean = true
+      showInnerGrid: boolean = true,
+      forceSpectrogramGrid: boolean = false
     ) => {
       const scaleLog = config.frequencyScale === FrequencyScale.LOGARITHMIC;
-      const isSpectrogram = config.visualizerMode === VisualizerMode.SPECTROGRAM;
+      const isSpectrogram = forceSpectrogramGrid || config.visualizerMode === VisualizerMode.SPECTROGRAM;
       const plotLeft = 48;
       const plotRightMargin = 14;
       const plotBottom = 22;
@@ -2461,15 +2454,128 @@ export function AnalyserCanvas({
       ctx.restore();
     };
 
+    const drawSpectrogramScroll = (
+      ctx: CanvasRenderingContext2D,
+      width: number,
+      height: number,
+      freqData: Float32Array,
+      totalBins: number,
+      sampleRate: number,
+      palette: any,
+      offscreenRef: React.MutableRefObject<HTMLCanvasElement | null>,
+      gridEnabled: boolean,
+      isFrozen: boolean = false
+    ) => {
+      const plotLeft = 48;
+      const plotRightMargin = 14;
+      const plotBottom = 22;
+      const plotWidth = Math.max(10, width - plotLeft - plotRightMargin);
+      const plotHeight = Math.max(10, height - plotBottom);
+
+      // Instantiate offscreen scrolling buffer matching plot dimensions
+      if (!offscreenRef.current) {
+        offscreenRef.current = document.createElement('canvas');
+        offscreenRef.current.width = plotWidth;
+        offscreenRef.current.height = plotHeight;
+        const offCtx = offscreenRef.current.getContext('2d');
+        if (offCtx) {
+          offCtx.fillStyle = palette.bgDark;
+          offCtx.fillRect(0, 0, plotWidth, plotHeight);
+        }
+      }
+
+      const sCanvas = offscreenRef.current;
+      const sCtx = sCanvas.getContext('2d');
+      if (!sCtx) return;
+
+      // Ensure offscreen fits window resize sizes
+      if (sCanvas.width !== plotWidth || sCanvas.height !== plotHeight) {
+        if (sCanvas.width > 0 && sCanvas.height > 0) {
+          try {
+            const backupData = sCtx.getImageData(0, 0, sCanvas.width, sCanvas.height);
+            sCanvas.width = plotWidth;
+            sCanvas.height = plotHeight;
+            sCtx.fillStyle = palette.bgDark;
+            sCtx.fillRect(0, 0, plotWidth, plotHeight);
+            sCtx.putImageData(backupData, 0, 0);
+          } catch (e) {
+            sCanvas.width = plotWidth;
+            sCanvas.height = plotHeight;
+            sCtx.fillStyle = palette.bgDark;
+            sCtx.fillRect(0, 0, plotWidth, plotHeight);
+          }
+        } else {
+          sCanvas.width = plotWidth;
+          sCanvas.height = plotHeight;
+          sCtx.fillStyle = palette.bgDark;
+          sCtx.fillRect(0, 0, plotWidth, plotHeight);
+        }
+      }
+
+      if (!isFrozen) {
+        // 1. Shift offscreen canvas contents DOWNwards by scrollSpeed pixels
+        const scrollSpeed = 1.5;
+        sCtx.drawImage(sCanvas, 0, 0, plotWidth, plotHeight - scrollSpeed, 0, scrollSpeed, plotWidth, plotHeight - scrollSpeed);
+
+        // 2. Draw newly generated 1-pixel row representing the current FFT frames
+        const isLog = config.frequencyScale === FrequencyScale.LOGARITHMIC;
+        const logMin = Math.log10(zoomMin);
+        const logMax = Math.log10(zoomMax);
+        const minDB = config.minDecibels;
+        const maxDB = config.maxDecibels;
+
+        for (let x = 0; x < plotWidth; x++) {
+          const ratioX = x / plotWidth;
+          let freq = 0;
+          let nextFreq = 0;
+          if (isLog) {
+            const logVal = logMin + ratioX * (logMax - logMin);
+            freq = Math.pow(10, logVal);
+            const logValNext = logMin + ((x + 1) / plotWidth) * (logMax - logMin);
+            nextFreq = Math.pow(10, logValNext);
+          } else {
+            freq = zoomMin + ratioX * (zoomMax - zoomMin);
+            nextFreq = zoomMin + ((x + 1) / plotWidth) * (zoomMax - zoomMin);
+          }
+
+          const db = getInterpolatedDbForFreq(freq, nextFreq, freqData, totalBins, sampleRate);
+
+          // Map decibels range (minDB to maxDB) to 0.0 -> 1.0 amplitude
+          const normalizedAmp = Math.max(0, Math.min(1, (db - minDB) / (maxDB - minDB)));
+          
+          // Grab custom spectrum sweep colors
+          sCtx.fillStyle = palette.getSpectrogramColor(normalizedAmp);
+          sCtx.fillRect(x, 0, 1, Math.max(1, scrollSpeed));
+        }
+      }
+
+      // 3. Blit the offscreen buffer directly onto main canvas inside the plot bounds at (plotLeft, 0)
+      ctx.drawImage(sCanvas, plotLeft, 0);
+
+      // 4. Draw overlays of Gridlines (In subtle transparency on top of scroll)
+      ctx.save();
+      drawGridLines(
+        ctx,
+        width,
+        height,
+        { gridColor: 'rgba(255, 255, 255, 0.05)', bgDark: 'transparent' },
+        gridEnabled,
+        true
+      );
+      ctx.restore();
+    };
+
     const renderWaveformScopeDeck = (
       wCtx: CanvasRenderingContext2D,
       wWidth: number,
       wHeight: number,
       timeData: Uint8Array,
+      freqData: Float32Array,
       totalBins: number,
+      sampleRate: number,
       palette: any,
       showGrid: boolean,
-      mode: 'split' | 'waveform' | 'oscilloscope',
+      mode: 'split' | 'spectrogram' | 'waveform' | 'oscilloscope',
       isFrozen: boolean = false,
       triggerThreshold: number = 0,
       timebase: number = 1.0
@@ -2478,11 +2584,36 @@ export function AnalyserCanvas({
       wCtx.fillStyle = '#050505';
       wCtx.fillRect(0, 0, wWidth, wHeight);
 
-      if (mode === 'split') {
+      if (mode === 'spectrogram') {
+        // Full Width Spectrogram
+        drawSpectrogramScroll(
+          wCtx,
+          wWidth,
+          wHeight,
+          freqData,
+          totalBins,
+          sampleRate,
+          palette,
+          spectrogramSecondaryCanvasRef,
+          showGrid,
+          isFrozen
+        );
+      } else if (mode === 'split') {
         const halfW = Math.floor(wWidth / 2);
 
-        // Left Half: Progressive Waveform being formed AS playback is ongoing
-        drawProgressiveWaveform(wCtx, 0, 0, halfW - 2, wHeight, palette, showGrid, isFrozen);
+        // Left Half: Spectrogram
+        drawSpectrogramScroll(
+          wCtx,
+          halfW - 2,
+          wHeight,
+          freqData,
+          totalBins,
+          sampleRate,
+          palette,
+          spectrogramSecondaryCanvasRef,
+          showGrid,
+          isFrozen
+        );
 
         // Center vertical divider
         wCtx.save();
@@ -2507,7 +2638,20 @@ export function AnalyserCanvas({
         wCtx.restore();
 
         // Right Half: Instantaneous Oscilloscope
-        drawOscilloscope(wCtx, halfW + 2, 0, wWidth - (halfW + 2), wHeight, timeData, totalBins, palette, showGrid, triggerThreshold, timebase, isFrozen);
+        drawOscilloscope(
+          wCtx,
+          halfW + 2,
+          0,
+          wWidth - (halfW + 2),
+          wHeight,
+          timeData,
+          totalBins,
+          palette,
+          showGrid,
+          triggerThreshold,
+          timebase,
+          isFrozen
+        );
       } else if (mode === 'waveform') {
         // Option to show only waveform: full width
         drawProgressiveWaveform(wCtx, 0, 0, wWidth, wHeight, palette, showGrid, isFrozen);
@@ -2656,111 +2800,7 @@ export function AnalyserCanvas({
       ctx.drawImage(sCanvas, 0, 0);
     };
 
-    const drawSpectrogramScroll = (
-      ctx: CanvasRenderingContext2D,
-      width: number,
-      height: number,
-      freqData: Float32Array,
-      totalBins: number,
-      sampleRate: number,
-      palette: any,
-      offscreenRef: React.MutableRefObject<HTMLCanvasElement | null>,
-      gridEnabled: boolean
-    ) => {
-      const plotLeft = 48;
-      const plotRightMargin = 14;
-      const plotBottom = 22;
-      const plotWidth = Math.max(10, width - plotLeft - plotRightMargin);
-      const plotHeight = Math.max(10, height - plotBottom);
 
-      // Instantiate offscreen scrolling buffer matching plot dimensions
-      if (!offscreenRef.current) {
-        offscreenRef.current = document.createElement('canvas');
-        offscreenRef.current.width = plotWidth;
-        offscreenRef.current.height = plotHeight;
-        const offCtx = offscreenRef.current.getContext('2d');
-        if (offCtx) {
-          offCtx.fillStyle = palette.bgDark;
-          offCtx.fillRect(0, 0, plotWidth, plotHeight);
-        }
-      }
-
-      const sCanvas = offscreenRef.current;
-      const sCtx = sCanvas.getContext('2d');
-      if (!sCtx) return;
-
-      // Ensure offscreen fits window resize sizes
-      if (sCanvas.width !== plotWidth || sCanvas.height !== plotHeight) {
-        if (sCanvas.width > 0 && sCanvas.height > 0) {
-          try {
-            const backupData = sCtx.getImageData(0, 0, sCanvas.width, sCanvas.height);
-            sCanvas.width = plotWidth;
-            sCanvas.height = plotHeight;
-            sCtx.fillStyle = palette.bgDark;
-            sCtx.fillRect(0, 0, plotWidth, plotHeight);
-            // Paint back
-            sCtx.putImageData(backupData, 0, 0);
-          } catch (e) {
-            sCanvas.width = plotWidth;
-            sCanvas.height = plotHeight;
-            sCtx.fillStyle = palette.bgDark;
-            sCtx.fillRect(0, 0, plotWidth, plotHeight);
-          }
-        } else {
-          sCanvas.width = plotWidth;
-          sCanvas.height = plotHeight;
-          sCtx.fillStyle = palette.bgDark;
-          sCtx.fillRect(0, 0, plotWidth, plotHeight);
-        }
-      }
-
-      // 1. Shift offscreen canvas contents DOWNwards by scrollSpeed pixels
-      const scrollSpeed = 1.5;
-      sCtx.drawImage(sCanvas, 0, 0, plotWidth, plotHeight - scrollSpeed, 0, scrollSpeed, plotWidth, plotHeight - scrollSpeed);
-
-      // 2. Draw newly generated 1-pixel row representing the current FFT frames
-      const isLog = config.frequencyScale === FrequencyScale.LOGARITHMIC;
-      const logMin = Math.log10(zoomMin);
-      const logMax = Math.log10(zoomMax);
-      const minDB = config.minDecibels;
-      const maxDB = config.maxDecibels;
-
-      for (let x = 0; x < plotWidth; x++) {
-        const ratioX = x / plotWidth;
-        let freq = 0;
-        let nextFreq = 0;
-        if (isLog) {
-          const logVal = logMin + ratioX * (logMax - logMin);
-          freq = Math.pow(10, logVal);
-          const logValNext = logMin + ((x + 1) / plotWidth) * (logMax - logMin);
-          nextFreq = Math.pow(10, logValNext);
-        } else {
-          freq = zoomMin + ratioX * (zoomMax - zoomMin);
-          nextFreq = zoomMin + ((x + 1) / plotWidth) * (zoomMax - zoomMin);
-        }
-
-        const db = getInterpolatedDbForFreq(freq, nextFreq, freqData, totalBins, sampleRate);
-
-        // Map decibels range (minDB to maxDB) to 0.0 -> 1.0 amplitude
-        const normalizedAmp = Math.max(0, Math.min(1, (db - minDB) / (maxDB - minDB)));
-        
-        // Grab custom spectrum sweep colors
-        sCtx.fillStyle = palette.getSpectrogramColor(normalizedAmp);
-        sCtx.fillRect(x, 0, 1, Math.max(1, scrollSpeed));
-      }
-
-      // 3. Blit the offscreen buffer directly onto main canvas inside the plot bounds at (plotLeft, 0)
-      ctx.drawImage(sCanvas, plotLeft, 0);
-
-      // 4. Draw overlays of Gridlines (In subtle transparency on top of scroll)
-      if (gridEnabled) {
-        ctx.save();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-        drawGridLines(ctx, width, height, { gridColor: 'rgba(255, 255, 255, 0.05)', bgDark: 'transparent' });
-        ctx.restore();
-      }
-    };
 
     const drawGridLinesHorizontal = (ctx: CanvasRenderingContext2D, width: number, height: number, palette: any) => {
       ctx.strokeStyle = palette.gridColor || 'rgba(255, 255, 255, 0.05)';
@@ -3330,7 +3370,7 @@ export function AnalyserCanvas({
                 <span className="text-[#B8B8B8] pl-1 text-[11px] font-sans font-medium uppercase tracking-[1px]">Mode:</span>
                 <select
                   id="select-spectrum-style-header"
-                  value={config.visualizerMode}
+                  value={config.visualizerMode === VisualizerMode.SPECTRUM_CURVE ? VisualizerMode.SPECTRUM_CURVE : VisualizerMode.SPECTRUM_BARS}
                   onChange={(e) => {
                     const selectedMode = e.target.value as VisualizerMode;
                     setConfig(prev => ({
@@ -3342,8 +3382,6 @@ export function AnalyserCanvas({
                 >
                   <option value={VisualizerMode.SPECTRUM_BARS} className="bg-[#181818]">Vertical Bars</option>
                   <option value={VisualizerMode.SPECTRUM_CURVE} className="bg-[#181818]">Curve</option>
-                  <option value={VisualizerMode.SPECTROGRAM} className="bg-[#181818]">Spectrogram</option>
-                  <option value={VisualizerMode.WAVEFORM} className="bg-[#181818]">Waveform (Oscilloscope)</option>
                 </select>
               </div>
 

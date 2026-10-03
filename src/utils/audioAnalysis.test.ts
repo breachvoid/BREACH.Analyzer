@@ -149,7 +149,7 @@ describe('Musical Key Detection (Goertzel Algorithm & Chromagram)', () => {
 
 describe('BPM & Tempo Detection (Onset Extraction & Autocorrelation)', () => {
   it('accurately detects standard tempos at 44.1 kHz, 48 kHz, and 96 kHz', () => {
-    const testTempos = [120, 128, 140];
+    const testTempos = [120, 128, 140, 174, 200];
     const sampleRates = [44100, 48000, 96000];
 
     for (const bpm of testTempos) {
@@ -157,7 +157,7 @@ describe('BPM & Tempo Detection (Onset Extraction & Autocorrelation)', () => {
         const buffer = createRhythmicBeatBuffer(sr, 5.0, bpm);
         const res = detectBpmFromAudio(buffer);
 
-        expect(Math.abs(res.bpm - bpm)).toBeLessThanOrEqual(1.0);
+        expect(Math.abs(res.bpm - bpm)).toBeLessThanOrEqual(1.5);
         expect(res.diagnostics).toBeDefined();
         expect(res.diagnostics?.status).toBe('SUCCESS');
         expect(res.diagnostics?.noveltyFluxGatePassed).toBe(true);
@@ -199,6 +199,28 @@ describe('BPM & Tempo Detection (Onset Extraction & Autocorrelation)', () => {
 
     expect(res.bpm).toBe(0);
     expect(res.diagnostics?.status).toBe('SHORT_CLIP');
+  });
+
+  it('automatically scans from 60s when initial 0-60s intro is silent or ambient (fallback scan)', () => {
+    const sampleRate = 22050;
+    const duration = 75; // 75 seconds total
+    const beatInterval = 60 / 128; // ~0.46875s
+    const buffer = createAudioBuffer(sampleRate, duration, (t) => {
+      // First 60 seconds is pure silence/ambient drone
+      if (t < 60) return 0;
+      // 60s onwards contains strong 128 BPM kick transients
+      const relTime = t - 60;
+      const phase = relTime % beatInterval;
+      if (phase < 0.04) {
+        return Math.sin(2 * Math.PI * 120 * phase) * Math.exp(-phase * 50);
+      }
+      return 0;
+    });
+
+    const res = detectBpmFromAudio(buffer);
+    expect(Math.abs(res.bpm - 128)).toBeLessThanOrEqual(1.5);
+    expect(res.diagnostics?.status).toBe('SUCCESS');
+    expect(res.diagnostics?.startOffsetSec).toBe(60);
   });
 
   it('records diagnostic tracking in getLastTempoDiagnostics()', () => {

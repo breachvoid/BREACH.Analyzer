@@ -12,6 +12,7 @@ export interface AudioAnalysisResult {
   camelot: string;
   scale: 'maj' | 'min';
   displayKey: string;
+  correlation?: number;
 }
 
 export interface TempoDiagnostics {
@@ -31,14 +32,16 @@ export interface TempoDiagnostics {
   bestRawScore: number;
   rawBpmBeforeOctaveCheck: number;
   halfLagPeak?: { lag: number; score: number };
+  thirdLagPeak?: { lag: number; score: number };
   doubleLagPeak?: { lag: number; score: number };
-  octaveDisambiguationAction: 'none' | 'doubled' | 'halved';
+  octaveDisambiguationAction: 'none' | 'doubled' | 'tripled' | 'halved';
   refinedSubLag: number;
   rawCalculatedBpm: number;
   finalBpm: number;
   firstBeatTime: number;
   status: 'SUCCESS' | 'SHORT_CLIP' | 'SILENCE_GATED' | 'INSUFFICIENT_FRAMES' | 'FLAT_NOVELTY_FLUX' | 'WEAK_CORRELATION_PEAK' | 'OUT_OF_BPM_RANGE' | 'ERROR';
   reason?: string;
+  startOffsetSec?: number;
 }
 
 export interface KeyDiagnostics {
@@ -105,7 +108,11 @@ const MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.6
  * Uses envelope onset novelty extraction & autocorrelation with octave disambiguation.
  * Returns bpm: 0 when evidence is insufficient (silence, non-rhythmic material, or short clips).
  */
-export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; firstBeatTime: number; diagnostics?: TempoDiagnostics } {
+function analyzeBpmSegment(
+  audioBuffer: AudioBuffer,
+  startSec: number = 0,
+  maxDurationSec: number = 60
+): { bpm: number; firstBeatTime: number; diagnostics?: TempoDiagnostics } {
   const diag: TempoDiagnostics = {
     trackDuration: audioBuffer.duration || 0,
     inputSampleRate: audioBuffer.sampleRate,
@@ -127,7 +134,8 @@ export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; fir
     rawCalculatedBpm: 0,
     finalBpm: 0,
     firstBeatTime: 0,
-    status: 'ERROR'
+    status: 'ERROR',
+    startOffsetSec: startSec
   };
 
   const finish = (bpm: number, firstBeatTime: number, status: TempoDiagnostics['status'], reason?: string) => {
@@ -142,6 +150,7 @@ export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; fir
         finalBpm: bpm,
         firstBeatTime,
         reason,
+        startOffsetSec: startSec,
         inputSampleRate: diag.inputSampleRate,
         effectiveSampleRate: diag.effectiveSampleRate,
         signalRms: diag.signalRms.toFixed(6),
@@ -158,8 +167,11 @@ export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; fir
     const channelData = audioBuffer.getChannelData(0);
     const totalSamples = channelData.length;
 
+    const startSample = Math.max(0, Math.floor(startSec * sampleRate));
+    const availableSamples = totalSamples - startSample;
+
     // Minimum 1.0 second required for meaningful tempo analysis
-    if (totalSamples < sampleRate * 1.0) {
+    if (availableSamples < sampleRate * 1.0) {
       return finish(0, 0, 'SHORT_CLIP', 'Input duration under 1.0 second threshold');
     }
 
@@ -170,8 +182,8 @@ export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; fir
     diag.decimationStep = step;
     diag.effectiveSampleRate = effectiveRate;
 
-    // Use up to 60 seconds of audio
-    const maxSamples = Math.min(Math.floor(totalSamples / step), Math.floor(60 * effectiveRate));
+    // Use up to maxDurationSec of audio from startSample
+    const maxSamples = Math.min(Math.floor(availableSamples / step), Math.floor(maxDurationSec * effectiveRate));
     diag.analyzedSamples = maxSamples;
     if (maxSamples < 1000) {
       return finish(0, 0, 'SHORT_CLIP', 'Fewer than 1000 decimated samples available');
@@ -182,7 +194,7 @@ export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; fir
     let signalRms = 0;
     for (let i = 0; i < maxSamples; i++) {
       let sum = 0;
-      const base = i * step;
+      const base = startSample + i * step;
       const end = Math.min(totalSamples, base + step);
       for (let j = base; j < end; j++) {
         sum += channelData[j];
@@ -252,7 +264,7 @@ export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; fir
 
     // If novelty flux is flat or lacks dynamic transient contrast (drone, sustained tone, or ambient noise)
     const relativeNovelty = maxNovelty / (signalRms + 1e-6);
-    if (maxNovelty < 1e-4 || meanNovelty < 1e-5 || relativeNovelty < 0.06) {
+    if (maxNovelty < 1e-4 || meanNovelty < 1e-5 || relativeNovelty < 0.025) {
       return finish(0, 0, 'FLAT_NOVELTY_FLUX', `Novelty flux flat (max: ${maxNovelty.toFixed(6)}, rel: ${relativeNovelty.toFixed(4)})`);
     }
 
@@ -283,10 +295,10 @@ export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; fir
     }
     diag.noveltyFluxGatePassed = true;
 
-    // Autocorrelation over range 60 - 200 BPM
+    // Autocorrelation over range 60 - 210 BPM (full DJ support up to 200+ BPM)
     const fps = effectiveRate / hopSize;
     const minBpm = 60;
-    const maxBpm = 200;
+    const maxBpm = 210;
     const minLag = Math.max(1, Math.floor((60 / maxBpm) * fps));
     const maxLag = Math.min(numFrames - 2, Math.ceil((60 / minBpm) * fps));
     diag.minLag = minLag;
@@ -318,12 +330,12 @@ export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; fir
     diag.rawBpmBeforeOctaveCheck = Math.round(((60 * fps) / bestLag) * 100) / 100;
 
     // Dimensionless scale-invariant threshold:
-    // Periodic beats in music produce normalized correlation >= 0.12. White noise produces < 0.09.
-    if (maxScore < 0.12) {
-      return finish(0, 0, 'WEAK_CORRELATION_PEAK', `Normalized correlation peak (${maxScore.toFixed(4)}) below minimum rhythmic threshold 0.12`);
+    // Periodic beats in rhythmic music produce normalized correlation >= 0.80. White noise produces ~0.15.
+    if (maxScore < 0.20) {
+      return finish(0, 0, 'WEAK_CORRELATION_PEAK', `Normalized correlation peak (${maxScore.toFixed(4)}) below minimum rhythmic threshold 0.20`);
     }
 
-    // Octave disambiguation: check half-tempo and double-tempo harmonics with local neighborhood search
+    // Harmonic and octave disambiguation: checks fundamental beat pulses against integer sub-harmonics
     const findLocalPeak = (scores: Float32Array, targetLag: number) => {
       let best = targetLag;
       let max = -1;
@@ -341,11 +353,18 @@ export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; fir
     const halfPeak = findLocalPeak(corrScores, halfTarget);
     diag.halfLagPeak = halfPeak;
 
-    if (halfPeak.lag >= minLag && halfPeak.score > maxScore * 0.60) {
-      // Half lag corresponds to double tempo. Favor standard dance range (85 - 175 BPM).
+    const thirdTarget = Math.round(bestLag / 3);
+    const thirdPeak = findLocalPeak(corrScores, thirdTarget);
+    diag.thirdLagPeak = thirdPeak;
+
+    // Disambiguate against sub-harmonics (triplet and double tempos up to 205 BPM)
+    if (thirdPeak.lag >= minLag && thirdPeak.score > maxScore * 0.60 && ((60 * fps) / thirdPeak.lag) <= 205) {
+      finalLag = thirdPeak.lag;
+      diag.octaveDisambiguationAction = 'tripled';
+    } else if (halfPeak.lag >= minLag && halfPeak.score > maxScore * 0.60) {
       const currentBpm = (60 * fps) / bestLag;
       const doubleBpm = (60 * fps) / halfPeak.lag;
-      if (currentBpm < 85 && doubleBpm <= 175) {
+      if (currentBpm < 100 && doubleBpm <= 205) {
         finalLag = halfPeak.lag;
         diag.octaveDisambiguationAction = 'doubled';
       }
@@ -354,10 +373,9 @@ export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; fir
       const doublePeak = findLocalPeak(corrScores, doubleTarget);
       diag.doubleLagPeak = doublePeak;
       if (doublePeak.lag <= maxLag && doublePeak.score > maxScore * 0.65) {
-        // Double lag corresponds to half tempo.
         const currentBpm = (60 * fps) / bestLag;
         const halfBpm = (60 * fps) / doublePeak.lag;
-        if (currentBpm > 165 && halfBpm >= 75) {
+        if (currentBpm > 205 && halfBpm >= 75) {
           finalLag = doublePeak.lag;
           diag.octaveDisambiguationAction = 'halved';
         }
@@ -395,7 +413,15 @@ export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; fir
         firstBeatTime = (i * hopSize) / effectiveRate;
       }
     }
-    const cleanFirstBeat = Math.max(0, Math.min(2.0, firstBeatTime));
+    // Project downbeat phase relative to song beginning (0.0s)
+    let cleanFirstBeat = 0;
+    if (finalBpm > 0) {
+      const beatInterval = 60 / finalBpm;
+      const absBeat = startSec + firstBeatTime;
+      const modBeat = absBeat % beatInterval;
+      cleanFirstBeat = modBeat >= 0 ? modBeat : modBeat + beatInterval;
+      cleanFirstBeat = Math.max(0, Math.min(beatInterval, cleanFirstBeat));
+    }
 
     if (finalBpm < 50 || finalBpm > 220) {
       return finish(0, cleanFirstBeat, 'OUT_OF_BPM_RANGE', `Calculated BPM (${finalBpm}) outside valid window 50-220`);
@@ -403,9 +429,39 @@ export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; fir
 
     return finish(finalBpm, cleanFirstBeat, 'SUCCESS', 'BPM detected successfully');
   } catch (err) {
-    console.warn('Error in detectBpmFromAudio:', err);
+    console.warn('Error in analyzeBpmSegment:', err);
     return finish(0, 0, 'ERROR', String(err));
   }
+}
+
+/**
+ * Analyzes the BPM (tempo) and first beat alignment from an AudioBuffer.
+ * Uses envelope onset novelty extraction & autocorrelation with octave disambiguation.
+ * Scans initial 0-60s; if 0 BPM is detected and duration > 62s, automatically rescans from 60s.
+ */
+export function detectBpmFromAudio(
+  audioBuffer: AudioBuffer
+): { bpm: number; firstBeatTime: number; diagnostics?: TempoDiagnostics } {
+  // Pass 1: scan initial 0s to 60s
+  const initialResult = analyzeBpmSegment(audioBuffer, 0, 60);
+  if (initialResult.bpm > 0) {
+    return initialResult;
+  }
+
+  const duration = audioBuffer.duration || 0;
+  // If BPM is 0, test candidate windows starting with 60s, then 30s or 90s
+  const candidateOffsets = [60, 30, 90].filter(offset => duration >= offset + 5);
+  for (const offset of candidateOffsets) {
+    const pass = analyzeBpmSegment(audioBuffer, offset, 60);
+    if (pass.bpm > 0) {
+      if (pass.diagnostics) {
+        pass.diagnostics.reason = `Initial 0-60s scan yielded 0 BPM (${initialResult.diagnostics?.status}); tempo successfully established from ${offset}s window`;
+      }
+      return pass;
+    }
+  }
+
+  return initialResult;
 }
 
 /**
@@ -414,11 +470,16 @@ export function detectBpmFromAudio(audioBuffer: AudioBuffer): { bpm: number; fir
  * across multiple octaves, and correlates against Krumhansl-Schmuckler profiles.
  * Returns "Unknown" with "—" Camelot when evidence is insufficient (silence, noise, percussion, or ambiguous harmony).
  */
-export function detectKeyFromAudio(audioBuffer: AudioBuffer): {
+function analyzeKeySegment(
+  audioBuffer: AudioBuffer,
+  startSec: number = 0,
+  maxDurationSec: number = 40
+): {
   musicalKey: string;
   camelot: string;
   scale: 'maj' | 'min';
   displayKey: string;
+  correlation: number;
   diagnostics?: KeyDiagnostics;
 } {
   const diag: KeyDiagnostics = {
@@ -466,6 +527,7 @@ export function detectKeyFromAudio(audioBuffer: AudioBuffer): {
         musicalKey,
         camelot,
         reason,
+        startSec,
         inputSampleRate: diag.inputSampleRate,
         effectiveSampleRate: diag.effectiveSampleRate,
         signalRms: diag.signalRms.toFixed(6),
@@ -474,7 +536,14 @@ export function detectKeyFromAudio(audioBuffer: AudioBuffer): {
         margin: diag.correlationMargin.toFixed(4)
       });
     }
-    return { musicalKey, camelot, scale, displayKey, diagnostics: diag };
+    return {
+      musicalKey,
+      camelot,
+      scale,
+      displayKey,
+      correlation: Math.max(0, diag.bestCorrelation || 0),
+      diagnostics: diag
+    };
   };
 
   const UNKNOWN_RESULT = (status: KeyDiagnostics['status'], reason: string) =>
@@ -485,8 +554,11 @@ export function detectKeyFromAudio(audioBuffer: AudioBuffer): {
     const channelData = audioBuffer.getChannelData(0);
     const totalSamples = channelData.length;
 
+    const startSample = Math.max(0, Math.floor(startSec * sampleRate));
+    const availableSamples = totalSamples - startSample;
+
     // Minimum 0.5s duration needed
-    if (totalSamples < sampleRate * 0.5) {
+    if (availableSamples < sampleRate * 0.5) {
       return UNKNOWN_RESULT('SHORT_CLIP', 'Input duration under 0.5 second threshold');
     }
 
@@ -499,8 +571,8 @@ export function detectKeyFromAudio(audioBuffer: AudioBuffer): {
     diag.effectiveSampleRate = effectiveRate;
 
     const samplesToAnalyze = Math.min(
-      Math.floor(totalSamples / step),
-      Math.floor(effectiveRate * 40) // Analyze up to 40 seconds
+      Math.floor(availableSamples / step),
+      Math.floor(effectiveRate * maxDurationSec)
     );
     diag.analyzedSamples = samplesToAnalyze;
 
@@ -516,7 +588,7 @@ export function detectKeyFromAudio(audioBuffer: AudioBuffer): {
     let totalRms = 0;
     for (let i = 0; i < samplesToAnalyze; i++) {
       let sum = 0;
-      const base = i * step;
+      const base = startSample + i * step;
       const end = Math.min(totalSamples, base + step);
       for (let j = base; j < end; j++) {
         sum += channelData[j];
@@ -595,9 +667,9 @@ export function detectKeyFromAudio(audioBuffer: AudioBuffer): {
     diag.chromaStdDev = chromaStdDev;
     diag.relativeStdDev = relativeStdDev;
 
-    // In white/pink noise or broadband percussion, energy across note bins is flat (relativeStdDev < 0.30)
-    if (relativeStdDev < 0.30) {
-      return UNKNOWN_RESULT('FLAT_SPECTRAL_PROFILE', `Chroma profile too flat (relativeStdDev: ${relativeStdDev.toFixed(4)} < 0.30), indicating noise or percussion`);
+    // In white/pink noise or broadband percussion, energy across note bins is flat (relativeStdDev < 0.15)
+    if (relativeStdDev < 0.15) {
+      return UNKNOWN_RESULT('FLAT_SPECTRAL_PROFILE', `Chroma profile too flat (relativeStdDev: ${relativeStdDev.toFixed(4)} < 0.15), indicating noise or percussion`);
     }
     diag.spectralFlatnessGatePassed = true;
 
@@ -666,30 +738,55 @@ export function detectKeyFromAudio(audioBuffer: AudioBuffer): {
     diag.secondBestCorrelation = secondBestCorrelation;
     diag.correlationMargin = bestCorrelation - secondBestCorrelation;
 
-    // Strict confidence gating:
-    // 1. Minimum correlation threshold: must be >= 0.50
-    if (bestCorrelation < 0.50) {
-      return UNKNOWN_RESULT('LOW_CORRELATION', `Best correlation (${bestCorrelation.toFixed(4)}) below minimum threshold 0.50`);
-    }
-
-    // 2. Margin over second-best: must be >= 0.03 to avoid ambiguous harmony
-    if ((bestCorrelation - secondBestCorrelation) < 0.03 || !bestKey) {
-      return UNKNOWN_RESULT('AMBIGUOUS_HARMONY', `Correlation margin (${(bestCorrelation - secondBestCorrelation).toFixed(4)}) below 0.03 ambiguity threshold`);
-    }
-    diag.confidenceGatePassed = true;
-
     const keyName = bestScale === 'min' ? `${bestKey} min` : `${bestKey} maj`;
     const shortKey = bestScale === 'min' ? `${bestKey}m` : bestKey;
-    const camelot = CAMELOT_MAP[keyName];
+    const camelot = CAMELOT_MAP[keyName] || '—';
 
-    if (!camelot) {
-      return UNKNOWN_RESULT('ERROR', `Missing Camelot mapping for key "${keyName}"`);
+    // Key correlation thresholds:
+    // > 0.40: High confidence (Green in UI)
+    // 0.20 to 0.40: Moderate confidence (Yellow in UI)
+    // < 0.20: Low confidence / below threshold (Red in UI)
+    if (bestCorrelation < 0.15 || !bestKey) {
+      return UNKNOWN_RESULT('LOW_CORRELATION', `Best correlation (${bestCorrelation.toFixed(4)}) below minimum threshold 0.15`);
     }
+
+    diag.confidenceGatePassed = bestCorrelation >= 0.40;
 
     return finish(shortKey, camelot, bestScale, `${shortKey} (${camelot})`, 'SUCCESS', 'Key detected successfully');
   } catch (err) {
-    console.warn('Error in detectKeyFromAudio:', err);
+    console.warn('Error in analyzeKeySegment:', err);
     return finish('Unknown', '—', 'min', 'Unknown', 'ERROR', String(err));
   }
+}
+
+/**
+ * Detects the musical key and Camelot Wheel identifier from an AudioBuffer.
+ * Analyzes pitch class profile (chroma vector) using block-windowed Goertzel resonators (Hann window)
+ * across multiple octaves, and correlates against Krumhansl-Schmuckler profiles.
+ * Scans initial 0-40s; if correlation < 0.25 and track duration > 45s, scans from 30s or 60s.
+ */
+export function detectKeyFromAudio(audioBuffer: AudioBuffer): {
+  musicalKey: string;
+  camelot: string;
+  scale: 'maj' | 'min';
+  displayKey: string;
+  correlation: number;
+  diagnostics?: KeyDiagnostics;
+} {
+  // Pass 1: analyze initial 0s to 40s
+  const initialResult = analyzeKeySegment(audioBuffer, 0, 40);
+
+  // If correlation is below 0.25 or key is Unknown, and track is long enough (> 45s), scan from 30s or 60s
+  if ((initialResult.correlation < 0.25 || initialResult.musicalKey === 'Unknown') && (audioBuffer.duration || 0) > 45) {
+    const candidateOffsets = [30, 60].filter(offset => (audioBuffer.duration || 0) >= offset + 5);
+    for (const offset of candidateOffsets) {
+      const pass = analyzeKeySegment(audioBuffer, offset, 40);
+      if (pass.correlation > initialResult.correlation) {
+        return pass;
+      }
+    }
+  }
+
+  return initialResult;
 }
 

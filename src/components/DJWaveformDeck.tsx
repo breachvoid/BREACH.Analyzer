@@ -74,6 +74,7 @@ export function DJWaveformDeck({
   const [bpmSource, setBpmSource] = useState<'auto' | 'none'>('none');
   const [musicalKey, setMusicalKey] = useState<string>('Unknown');
   const [camelotKey, setCamelotKey] = useState<string>('—');
+  const [keyCorrelation, setKeyCorrelation] = useState<number>(0);
   const [gridOffset, setGridOffset] = useState<number>(0);
   const [isGridLocked, setIsGridLocked] = useState<boolean>(true);
   const [zoomLevel, setZoomLevel] = useState<number>(3.5);
@@ -164,6 +165,7 @@ export function DJWaveformDeck({
         console.debug('[AudioAnalysis:Key Lifecycle] Applied key detection:', keyAnalysis.musicalKey, keyAnalysis.camelot, keyAnalysis.diagnostics);
         setMusicalKey(keyAnalysis.musicalKey);
         setCamelotKey(keyAnalysis.camelot);
+        setKeyCorrelation(keyAnalysis.correlation ?? keyAnalysis.diagnostics?.bestCorrelation ?? 0);
 
         const channelData = audioBuf.getChannelData(0);
         const sampleRate = audioBuf.sampleRate;
@@ -323,6 +325,35 @@ export function DJWaveformDeck({
     const beatInBar = (Math.floor(totalBeats) % 4) + 1;
     return `${barNum}.${beatInBar}Bars`;
   }, [currentTime, bpm, gridOffset]);
+
+  // Key detection threshold color indicators:
+  // > 0.4: Green (over threshold)
+  // 0.2 to 0.4: Yellow (between 0.2 and 0.4)
+  // < 0.2: Red (below that)
+  const keyColor = useMemo(() => {
+    if (musicalKey === 'Unknown' || keyCorrelation < 0.2) {
+      return {
+        dot: 'bg-[#EF4444] shadow-[0_0_6px_#EF4444]',
+        text: 'text-[#EF4444]',
+        badge: 'bg-[#EF4444]/25 text-[#EF4444] border border-[#EF4444]/40',
+        confidenceLabel: 'Low Confidence (< 0.2)'
+      };
+    }
+    if (keyCorrelation <= 0.4) {
+      return {
+        dot: 'bg-[#EAB308] shadow-[0_0_6px_#EAB308]',
+        text: 'text-[#EAB308]',
+        badge: 'bg-[#EAB308]/25 text-[#EAB308] border border-[#EAB308]/40',
+        confidenceLabel: 'Moderate Confidence (0.2 – 0.4)'
+      };
+    }
+    return {
+      dot: 'bg-[#22C55E] shadow-[0_0_6px_#22C55E]',
+      text: 'text-[#22C55E]',
+      badge: 'bg-[#22C55E]/25 text-[#22C55E] border border-[#22C55E]/40',
+      confidenceLabel: 'High Confidence (> 0.4)'
+    };
+  }, [musicalKey, keyCorrelation]);
 
   // Nudge beatgrid phase left / right (5ms)
   const handleNudgeGrid = (direction: 'left' | 'right') => {
@@ -966,20 +997,20 @@ export function DJWaveformDeck({
               </span>
             </div>
 
-            {/* Dynamic Musical Key & Camelot Wheel Indicator */}
+            {/* Dynamic Musical Key & Camelot Wheel Indicator with threshold color coding */}
             <div className="flex flex-col items-end pl-2 border-l border-[#333333]">
               <span className="text-[10px] uppercase font-sans font-medium text-[#858585] tracking-wider flex items-center gap-1">
-                <span className={`w-1.5 h-1.5 rounded-full ${musicalKey === 'Unknown' ? 'bg-[#555555]' : 'bg-[#b20000]'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${keyColor.dot}`} />
                 KEY (CAMELOT)
               </span>
               <div 
                 className="flex items-center gap-1.5 mt-0.5 cursor-pointer hover:opacity-85 transition-opacity"
-                title={`Detected Key: ${musicalKey} • Camelot Code: ${camelotKey}`}
+                title={`Detected Key: ${musicalKey} • Camelot Code: ${camelotKey} • Correlation: ${(keyCorrelation * 100).toFixed(1)}% (${keyColor.confidenceLabel})`}
               >
-                <span className="text-[14px] font-mono font-semibold text-[#F2F2F2] tracking-tight">
+                <span className={`text-[14px] font-mono font-semibold tracking-tight ${keyColor.text}`}>
                   {musicalKey}
                 </span>
-                <span className={`px-1.5 py-0.5 text-[10px] font-sans font-bold ${camelotKey === '—' ? 'bg-[#2a2a2a] text-[#858585]' : 'bg-[#b20000] text-[#F2F2F2]'}`}>
+                <span className={`px-1.5 py-0.5 text-[10px] font-sans font-bold ${keyColor.badge}`}>
                   {camelotKey}
                 </span>
               </div>
