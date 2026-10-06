@@ -1,10 +1,9 @@
-import { MeasurementSummary } from './MeasurementSummary';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Music, 
   Upload, 
@@ -30,7 +29,7 @@ import {
   Disc,
   Waves
 } from 'lucide-react';
-import { AudioSourceType, type TrackAnalysisDisplay } from '../types';
+import { AudioSourceType } from '../types';
 import { audioAnalyzer, useStreamMetadata } from '../audioEngine';
 import { FloatingWindow } from './FloatingWindow';
 import { usePersistentState, SafeStorage } from '../utils/storage';
@@ -92,7 +91,6 @@ interface SourceSelectorProps {
   setIsPlaying: (playing: boolean) => void;
   isEmbedded?: boolean;
   togglePlaybackRef: React.MutableRefObject<(() => void) | null>;
-  trackAnalysis?: TrackAnalysisDisplay | null;
   fileUrl: string;
   setFileUrl: (url: string) => void;
   fileName: string;
@@ -120,7 +118,6 @@ export function SourceSelector({
   setIsPlaying,
   togglePlaybackRef,
   fileUrl,
-  trackAnalysis,
   setFileUrl,
   fileName,
   setFileName,
@@ -140,45 +137,7 @@ export function SourceSelector({
   setDeck2ShowGrid
 }: SourceSelectorProps) {
   const sharedMetadata = useStreamMetadata();
-  useEffect(() => { audioAnalyzer.selectFile(fileUrl, fileName); }, [fileUrl, fileName]);
   const streamMetadata = isAudioMetadataForUrl(sharedMetadata.sourceUrl, fileUrl) ? sharedMetadata : null;
-
-  const selectedAnalysis = trackAnalysis?.fileUrl === fileUrl ? trackAnalysis : undefined;
-  const bpm = selectedAnalysis?.bpm || 0;
-  const bpmSource = selectedAnalysis?.bpmSource || 'none';
-  const musicalKey = selectedAnalysis?.musicalKey || 'Unknown';
-  const camelotKey = selectedAnalysis?.camelotKey || '—';
-  const keyCorrelation = selectedAnalysis?.keyCorrelation || 0;
-
-  // Key detection threshold color indicators:
-  // > 0.4: Green (over threshold)
-  // 0.2 to 0.4: Yellow (between 0.2 and 0.4)
-  // < 0.2: Red (below that)
-  const keyColor = useMemo(() => {
-    if (musicalKey === 'Unknown' || keyCorrelation < 0.2) {
-      return {
-        dot: 'bg-[#EF4444] shadow-[0_0_6px_#EF4444]',
-        text: 'text-[#EF4444]',
-        badge: 'bg-[#EF4444]/25 text-[#EF4444] border border-[#EF4444]/40',
-        confidenceLabel: musicalKey === 'Unknown' ? 'Not enough clear tonal evidence to estimate a key' : 'Low similarity (< 0.2)'
-      };
-    }
-    if (keyCorrelation <= 0.65) {
-      return {
-        dot: 'bg-[#EAB308] shadow-[0_0_6px_#EAB308]',
-        text: 'text-[#EAB308]',
-        badge: 'bg-[#EAB308]/25 text-[#EAB308] border border-[#EAB308]/40',
-        confidenceLabel: 'Moderate similarity (0.4 – 0.65)'
-      };
-    }
-    return {
-      dot: 'bg-[#22C55E] shadow-[0_0_6px_#22C55E]',
-      text: 'text-[#22C55E]',
-      badge: 'bg-[#22C55E]/25 text-[#22C55E] border border-[#22C55E]/40',
-      confidenceLabel: 'Strong similarity (> 0.65)'
-    };
-  }, [musicalKey, keyCorrelation]);
-
 
   const formatTime = (seconds: number) => {
     if (isNaN(seconds) || seconds < 0) return '00:00';
@@ -395,7 +354,6 @@ export function SourceSelector({
             await audioAnalyzer.startSource(AudioSourceType.AUDIO_FILE, {
               element: audioRef.current
             });
-            if (!audioAnalyzer.isSourceActive()) return;
             setIsPlaying(true);
             setIsPlaybackActive(true);
             audioRef.current.play().catch((err) => {
@@ -431,7 +389,6 @@ export function SourceSelector({
             await audioAnalyzer.startSource(AudioSourceType.AUDIO_FILE, {
               element: audioRef.current
             });
-            if (!audioAnalyzer.isSourceActive()) return;
             setIsPlaying(true);
           } catch (err) {
             console.error('Failed to start audio analyzer engine for playback:', err);
@@ -469,8 +426,6 @@ export function SourceSelector({
     audioAnalyzer.updateMetadata({ ...unknownAudioMetadata(AudioFileRegistry.get(targetUrl)?.name || targetUrl),
       sourceUrl: targetUrl, trackChannelCount: undefined, bitDepth: undefined, isVBR: undefined, bitrateKind: undefined });
 
-    audioAnalyzer.selectFile(targetUrl, item.name);
-    setFileCurrentTime(0); setFileDuration(0);
     setFileName(item.name);
     setFileUrl(targetUrl);
 
@@ -494,7 +449,6 @@ export function SourceSelector({
             await audioAnalyzer.startSource(AudioSourceType.AUDIO_FILE, {
               element: audioRef.current
             });
-            if (!audioAnalyzer.isSourceActive()) return;
             if (reqId !== trackSelectionReqIdRef.current) return;
             audioRef.current.play().catch((err) => {
               console.warn('Playback error (needs user gesture):', err);
@@ -562,7 +516,7 @@ export function SourceSelector({
   const handleRefreshStudioDeck = () => {
     // 1. Restart playback to 0 and play if was playing
     if (audioRef.current) {
-      audioAnalyzer.seek(0);
+      audioRef.current.currentTime = 0;
       if (isPlaying) {
         audioRef.current.play().catch(() => {});
       }
@@ -696,7 +650,8 @@ export function SourceSelector({
     const time = parseFloat(e.target.value);
     setFileCurrentTime(time);
     if (audioRef.current) {
-      audioAnalyzer.seek(time);
+      audioRef.current.currentTime = time;
+      audioAnalyzer.handleSeek();
     }
   };
 
@@ -836,59 +791,28 @@ export function SourceSelector({
 
   const renderStudioDeckBodyContents = () => {
     return (
-      <div className="flex-grow flex flex-col min-h-0 p-4 bg-[#1a1a1a] gap-3 h-full overflow-y-auto @container" id="studio-deck-body">
+      <div className="flex-grow flex flex-col min-h-0 p-4 bg-[#1a1a1a] gap-3 h-full overflow-y-auto" id="studio-deck-body">
         {/* Source subcontent container */}
         <div className="flex-grow min-h-0 text-left overflow-y-auto" id="studio-deck-subcontent">
           {/* FILE Tab Active */}
           {studioTab === 'file' && (
-            <div className="flex flex-col min-h-full gap-3" id="file-tab-pane">
+            <div className="flex flex-col gap-3" id="file-tab-pane">
               {/* Track Info Hero Card */}
-              <div className="flex flex-wrap items-center gap-4 bg-[#181818] border border-[#4a4a4a] p-3 shrink-0" id="active-track-hero-row">
+              <div className="flex items-center gap-4 bg-[#181818] border border-[#4a4a4a] p-3" id="active-track-hero-row">
                 <div className="p-2.5 bg-[#121212] border border-[#4a4a4a] text-[#b20000] flex items-center justify-center w-12 h-12 shrink-0">
                   <Music className="w-6 h-6 text-[#b20000]" />
                 </div>
-                <div className="min-w-0 flex-1 text-left">
-                  {fileName && (
+                <div className="min-w-0 flex-grow text-left">
+                    {fileName && (
                     <p className="text-[12px] uppercase font-sans text-[#b20000] font-semibold tracking-[1px] mb-0.5">
                       CURRENT FILE LOADED
                     </p>
-                  )}
-                  <p className="text-[13px] font-sans font-semibold text-[#F2F2F2] truncate tracking-tight leading-tight" style={{ textAlign: 'left' }} title={fileName || 'No Ref Track Active'}>
+                    )}
+                  <p className="text-[13px] font-sans font-semibold text-[#F2F2F2] truncate tracking-tight leading-tight" title={fileName || 'No Ref Track Active'}>
                     {fileName || 'No track selected'}
                   </p>
-                  {!fileName && (
-                    <p className="text-[11px] font-sans text-[#858585] leading-normal mt-1">
-                      Load standard linear format WAV PCM, FLAC Lossless, or encoded VBR MP3 calibration references.
-                    </p>
-                  )}
-                </div>
                 {fileName && (
-                  <div className="flex flex-wrap gap-4 w-full @min-[520px]:w-auto @min-[520px]:ml-auto shrink-0" id="studio-track-analysis">
-                    <div className="flex flex-col items-start @min-[520px]:items-end" id="studio-track-tempo">
-                      <span className="text-[10px] uppercase font-sans font-medium text-[#858585] tracking-wider flex items-center gap-1">
-                        Estimated tempo
-                        {bpmSource === 'auto' && <span className="text-[8px] font-sans font-bold px-1 py-0.5 bg-[#00BFFF]/20 text-[#00BFFF]">AUTO</span>}
-                      </span>
-                      <span className="text-[15px] font-mono font-semibold text-[#F2F2F2] tabular-nums tracking-wide" title={bpm > 0 ? `Estimated tempo: ${bpm.toFixed(2)} BPM` : 'No reliable tempo estimate yet.'}>
-                        {bpm > 0 ? bpm.toFixed(2) + ' BPM' : 'Unknown BPM'}
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-start @min-[520px]:items-end" id="studio-track-key">
-                      <span className="text-[10px] uppercase font-sans font-medium text-[#858585] tracking-wider flex items-center gap-1">
-                        <span className={`w-1.5 h-1.5 rounded-full ${keyColor.dot}`} />
-                        Estimated key (Camelot)
-                      </span>
-                      <div className="flex items-center gap-1.5 mt-0.5" title={`Estimated key: ${musicalKey} • Camelot: ${camelotKey} • Profile similarity: ${(keyCorrelation * 100).toFixed(1)}% (${keyColor.confidenceLabel}). Similarity measures how closely the note pattern matches a key profile; it is not a probability of correctness.`}>
-                        <span className={`text-[14px] font-mono font-semibold tracking-tight ${keyColor.text}`}>{musicalKey}</span>
-                        <span className={`px-1.5 py-0.5 text-[10px] font-sans font-bold ${keyColor.badge}`}>{camelotKey}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-                {fileName && (
-                    <div id="active-track-metadata" className="flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0 shrink-0 text-[10px] font-mono text-[#858585]">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 min-w-0 text-[10px] font-mono text-[#858585]">
                       {/* Sample Rate */}
                       <div className="flex items-center gap-1 min-w-0 max-w-full">
                         <Cpu className="w-3 h-3 text-[#858585] shrink-0" />
@@ -900,7 +824,7 @@ export function SourceSelector({
                         <Sliders className="w-3 h-3 text-[#858585] shrink-0" />
                         <span className="font-medium text-[#858585]">Specs:</span>
                         <span className="text-[#F2F2F2] font-semibold min-w-0 break-words">
-                          {streamMetadata && streamMetadata.bitrate > 0
+                          {streamMetadata && streamMetadata.bitrate > 0 
                             ? `${streamMetadata.bitDepth ? streamMetadata.bitDepth + '-bit / ' : ''}${streamMetadata.bitrate} kbps${streamMetadata.bitrateKind ? ' (' + streamMetadata.bitrateKind + ')' : ''}${streamMetadata.isVBR === true ? ' (VBR)' : ''}`
                             : 'Unknown'}
                         </span>
@@ -912,11 +836,18 @@ export function SourceSelector({
                       </div>
                     </div>
                 )}
+                  {!fileName && (
+                    <p className="text-[11px] font-sans text-[#858585] leading-normal mt-1">
+                      Load standard linear format WAV PCM, FLAC Lossless, or encoded VBR MP3 calibration references.
+                    </p>
+                  )}
+                </div>
+              </div>
 
               {/* Deck 1 Main Reference Player Controls */}
               {fileName && (
                 <div 
-                  className="flex flex-col gap-2.5 px-1 py-1 mt-auto shrink-0"
+                  className="flex flex-col gap-2.5 px-1 py-1"
                   id="deck-1-media-controls"
                 >
                   {/* Progress bar timeline slider */}
@@ -936,10 +867,10 @@ export function SourceSelector({
                   </div>
 
                   {/* Playlist Queue Controller Strip */}
-                  <div className="grid grid-cols-1 @min-[400px]:grid-cols-3 gap-3 @min-[400px]:gap-0 items-center w-full" id="playlist-queue-controller-strip">
+                  <div className="grid grid-cols-3 items-center w-full" id="playlist-queue-controller-strip">
                     {/* Left: stacked Loop and Autoplay toggles */}
                     <div 
-                      className="flex flex-wrap @min-[400px]:flex-col gap-1.5 items-start shrink-0 select-none"
+                      className="flex flex-col gap-1.5 items-start shrink-0 select-none" 
                       style={{ marginTop: '8px' }}
                       id="playlist-left-toggles"
                     >
@@ -1044,11 +975,9 @@ export function SourceSelector({
                         <SkipForward className="w-3.5 h-3.5 fill-current" />
                       </button>
                     </div>
-                    <MeasurementSummary targetLoudness={targetLoudness ?? -14} />
                   </div>
                 </div>
               )}
-              {!fileUrl && <MeasurementSummary targetLoudness={targetLoudness ?? -14} />}
             </div>
           )}
 
@@ -1114,7 +1043,7 @@ export function SourceSelector({
               </h3>
             </div>
             {/* Unified Studio Deck Tabs in Header */}
-            <div className="flex flex-wrap items-center gap-2.5 min-w-0" id="header-signal-settings-tabs-with-control">
+            <div className="flex items-center gap-2.5 shrink-0" id="header-signal-settings-tabs-with-control">
               {renderStudioDeckTabs('header-')}
 
               {/* Separator / Divider */}
@@ -1315,25 +1244,16 @@ export function SourceSelector({
     <div className="flex flex-col w-full relative" id="audio-source-manager" ref={containerRef}>
       {/* HTML Hidden Local Audio Node */}
       <audio 
-        crossOrigin="anonymous"
         ref={audioRef}
-        onError={() => {
-          if (!audioRef.current?.src) return;
-          audioAnalyzer.sourceUnavailable('This audio could not be loaded. For remote links, check that the host allows cross-origin access and that the format plays in your browser.');
-          setIsPlaying(false); setIsPlaybackActive(false);
-        }}
         onTimeUpdate={onTimeUpdate}
         onSeeked={onTimeUpdate}
         onLoadedMetadata={onLoadedMetadata}
         onPlay={() => setIsPlaybackActive(true)}
-        onPause={() => { audioAnalyzer.pause(); setIsPlaybackActive(false); setIsPlaying(false); }}
+        onPause={() => setIsPlaybackActive(false)}
         onEnded={() => {
-          audioAnalyzer.pause();
           if (loopTrack) {
             if (audioRef.current) {
-              audioAnalyzer.seek(0);
-              audioAnalyzer.startSource(AudioSourceType.AUDIO_FILE, { element: audioRef.current });
-              setIsPlaying(true);
+              audioRef.current.currentTime = 0;
               audioRef.current.play().catch(() => {});
             }
           } else if (autoplayNext) {
@@ -1353,7 +1273,6 @@ export function SourceSelector({
         className="hidden"
       />
 
-      {sharedMetadata.analysisError && <div role="alert" className="border border-[#b20000] bg-[#181818] text-[#ff6666] px-3 py-2 text-xs mb-3">{sharedMetadata.analysisError}</div>}
       {renderSourceSelectorMain()}
 
       {isDeckPoppedOut && (
@@ -1371,7 +1290,7 @@ export function SourceSelector({
               <div className="flex items-center gap-1.5 overflow-x-auto flex-grow">
                 {renderStudioDeckTabs('popout-')}
               </div>
-              <div className="flex flex-wrap items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2 shrink-0">
                 <ResetButton
                   onClick={handleRefreshStudioDeck}
                   title="Refresh Studio Deck: Restart playback and reset to defaults"

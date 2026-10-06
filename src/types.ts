@@ -64,6 +64,7 @@ export const LoudnessStandard = Object.fromEntries(
 export type LoudnessStandard = typeof LoudnessStandard[keyof typeof LoudnessStandard];
 
 export interface LoudnessMetrics {
+  measuredSeconds?: number;
   momentary: number;      // 400ms window (LUFS)
   shortTerm: number;      // 3s window (LUFS)
   integrated: number;     // Gated integrated loudness (LUFS)
@@ -132,4 +133,14 @@ export interface PresetItem {
   name: string;
   isCustom: boolean;
   config: Partial<AnalyzerConfig>;
+}
+
+// Existing file-analysis outputs shared between the waveform producer and Studio Deck display.
+export interface TrackAnalysisDisplay {
+  fileUrl: string;
+  bpm: number;
+  bpmSource: 'auto' | 'none';
+  musicalKey: string;
+  camelotKey: string;
+  keyCorrelation: number;
 }

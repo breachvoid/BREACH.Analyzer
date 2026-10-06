@@ -23,6 +23,8 @@ export interface TempoDiagnostics {
   analyzedSamples: number;
   signalRms: number;
   envelopeFrames: number;
+  envelopeCoefficientVariation?: number;
+  onsetPeakContrast?: number;
   maxNovelty: number;
   meanNovelty: number;
   noveltyFluxGatePassed: boolean;
@@ -79,6 +81,21 @@ export function getLastTempoDiagnostics(): TempoDiagnostics | null {
 
 export function getLastKeyDiagnostics(): KeyDiagnostics | null {
   return lastKeyDiagnostics;
+}
+
+/** Select the channel with the most sampled energy, without phase cancellation.
+ * Musical estimates and colored waveform describe this dominant channel, not a stereo sum.
+ */
+export function selectAnalysisChannel(buffer: AudioBuffer): Float32Array {
+  let best = buffer.getChannelData(0), bestEnergy = -1;
+  for (let c = 0; c < (buffer.numberOfChannels || 1); c++) {
+    const data = buffer.getChannelData(c);
+    const step = Math.max(1, Math.floor(data.length / 32768));
+    let energy = 0;
+    for (let i = 0; i < data.length; i += step) energy += data[i] * data[i];
+    if (energy > bestEnergy) { bestEnergy = energy; best = data; }
+  }
+  return best;
 }
 
 const PITCH_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -164,7 +181,7 @@ function analyzeBpmSegment(
 
   try {
     const sampleRate = audioBuffer.sampleRate;
-    const channelData = audioBuffer.getChannelData(0);
+    const channelData = selectAnalysisChannel(audioBuffer);
     const totalSamples = channelData.length;
 
     const startSample = Math.max(0, Math.floor(startSec * sampleRate));
@@ -258,9 +275,19 @@ function analyzeBpmSegment(
       if (val > maxNovelty) maxNovelty = val;
       sumNovelty += val;
     }
+    // Steady harmonic beating can be highly periodic without establishing musical onsets.
+    // Require dynamic envelope evidence independently of autocorrelation.
+    const envelopeMean = fullEnvelope.reduce((sum, value) => sum + value, 0) / numFrames;
+    const envelopeVariance = fullEnvelope.reduce((sum, value) => sum + (value - envelopeMean) ** 2, 0) / numFrames;
+    diag.envelopeCoefficientVariation = Math.sqrt(envelopeVariance) / Math.max(1e-12, envelopeMean);
     diag.maxNovelty = maxNovelty;
     const meanNovelty = sumNovelty / numFrames;
     diag.meanNovelty = meanNovelty;
+    diag.onsetPeakContrast = maxNovelty / Math.max(1e-12, meanNovelty);
+    if (diag.envelopeCoefficientVariation < 0.20 || diag.onsetPeakContrast < 6) {
+      return finish(0, 0, 'FLAT_NOVELTY_FLUX', 'Insufficient transient contrast; steady tonal beating is not enough to establish tempo');
+    }
+
 
     // If novelty flux is flat or lacks dynamic transient contrast (drone, sustained tone, or ambient noise)
     const relativeNovelty = maxNovelty / (signalRms + 1e-6);
@@ -330,9 +357,9 @@ function analyzeBpmSegment(
     diag.rawBpmBeforeOctaveCheck = Math.round(((60 * fps) / bestLag) * 100) / 100;
 
     // Dimensionless scale-invariant threshold:
-    // Periodic beats in rhythmic music produce normalized correlation >= 0.80. White noise produces ~0.15.
-    if (maxScore < 0.20) {
-      return finish(0, 0, 'WEAK_CORRELATION_PEAK', `Normalized correlation peak (${maxScore.toFixed(4)}) below minimum rhythmic threshold 0.20`);
+    // Conservative evidence gate; this score is not a calibrated probability of musical tempo.
+    if (maxScore < 0.45) {
+      return finish(0, 0, 'WEAK_CORRELATION_PEAK', `Normalized correlation peak (${maxScore.toFixed(4)}) below minimum rhythmic threshold 0.45`);
     }
 
     // Harmonic and octave disambiguation: checks fundamental beat pulses against integer sub-harmonics
@@ -551,7 +578,7 @@ function analyzeKeySegment(
 
   try {
     const sampleRate = audioBuffer.sampleRate;
-    const channelData = audioBuffer.getChannelData(0);
+    const channelData = selectAnalysisChannel(audioBuffer);
     const totalSamples = channelData.length;
 
     const startSample = Math.max(0, Math.floor(startSec * sampleRate));
@@ -667,9 +694,9 @@ function analyzeKeySegment(
     diag.chromaStdDev = chromaStdDev;
     diag.relativeStdDev = relativeStdDev;
 
-    // In white/pink noise or broadband percussion, energy across note bins is flat (relativeStdDev < 0.15)
-    if (relativeStdDev < 0.15) {
-      return UNKNOWN_RESULT('FLAT_SPECTRAL_PROFILE', `Chroma profile too flat (relativeStdDev: ${relativeStdDev.toFixed(4)} < 0.15), indicating noise or percussion`);
+    // In white/pink noise or broadband percussion, energy across note bins is flat (relativeStdDev < 0.30)
+    if (relativeStdDev < 0.30) {
+      return UNKNOWN_RESULT('FLAT_SPECTRAL_PROFILE', `Chroma profile too flat (relativeStdDev: ${relativeStdDev.toFixed(4)} < 0.30), indicating noise or percussion`);
     }
     diag.spectralFlatnessGatePassed = true;
 
@@ -738,16 +765,18 @@ function analyzeKeySegment(
     diag.secondBestCorrelation = secondBestCorrelation;
     diag.correlationMargin = bestCorrelation - secondBestCorrelation;
 
+    const supportedClasses = Array.from(chroma).filter(value => value >= 0.15).length;
+    if (supportedClasses < 3 || diag.correlationMargin < 0.025) {
+      return UNKNOWN_RESULT('AMBIGUOUS_HARMONY', 'Insufficient distinct pitch classes or near-tied key profiles');
+    }
+
     const keyName = bestScale === 'min' ? `${bestKey} min` : `${bestKey} maj`;
     const shortKey = bestScale === 'min' ? `${bestKey}m` : bestKey;
     const camelot = CAMELOT_MAP[keyName] || '—';
 
-    // Key correlation thresholds:
-    // > 0.40: High confidence (Green in UI)
-    // 0.20 to 0.40: Moderate confidence (Yellow in UI)
-    // < 0.20: Low confidence / below threshold (Red in UI)
-    if (bestCorrelation < 0.15 || !bestKey) {
-      return UNKNOWN_RESULT('LOW_CORRELATION', `Best correlation (${bestCorrelation.toFixed(4)}) below minimum threshold 0.15`);
+    // Profile similarity is not a probability. Evidence and ambiguity gates apply independently.
+    if (bestCorrelation < 0.40 || !bestKey) {
+      return UNKNOWN_RESULT('LOW_CORRELATION', `Best correlation (${bestCorrelation.toFixed(4)}) below minimum threshold 0.40`);
     }
 
     diag.confidenceGatePassed = bestCorrelation >= 0.40;

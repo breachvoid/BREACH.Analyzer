@@ -228,11 +228,15 @@ check(metaMono.channels === 1, `Mono channels: expected 1, got ${metaMono.channe
 check(metaMono.bitrate === 1152, `Mono bitrate: expected 1152 kbps, got ${metaMono.bitrate}`);
 
 // MP3 Header Test: 48kHz 320kbps Stereo MPEG-1 Layer III
-const mp3Buf = new Uint8Array(200);
-mp3Buf[0] = 0xff;
-mp3Buf[1] = 0xfb; // 11111011 (MPEG 1, Layer 3, no CRC)
-mp3Buf[2] = (14 << 4) | (1 << 2); // 320kbps (14), 48000Hz (1)
-mp3Buf[3] = 0x00; // Stereo (0)
+// A valid 320 kbps / 48 kHz MPEG-1 Layer III stream needs consecutive 960-byte frames.
+const mp3Buf = new Uint8Array(960 * 3);
+for (let frame = 0; frame < 3; frame++) {
+  const offset = frame * 960;
+  mp3Buf[offset] = 0xff;
+  mp3Buf[offset + 1] = 0xfb;
+  mp3Buf[offset + 2] = (14 << 4) | (1 << 2);
+  mp3Buf[offset + 3] = 0x00;
+}
 const metaMp3 = parseAudioMetadata(mp3Buf.buffer);
 check(metaMp3.sampleRate === 48000, `MP3 sample rate: expected 48000, got ${metaMp3.sampleRate}`);
 check(metaMp3.bitrate === 320, `MP3 bitrate: expected 320, got ${metaMp3.bitrate}`);

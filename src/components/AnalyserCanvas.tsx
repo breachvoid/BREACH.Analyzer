@@ -1,3 +1,4 @@
+import { PanelInfo } from './PanelInfo';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -5,11 +6,12 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { Maximize2, Minimize2, Eye, EyeOff, BarChart2, TrendingUp, Compass, Activity, Palette, Cpu, Disc, Zap, ExternalLink, Sliders, Trash2, Pencil, Check, X, RefreshCw, Waves, AudioLines, Snowflake } from 'lucide-react';
-import { AnalyzerConfig, VisualizerMode, FrequencyScale, AudioSourceType, GeneratorSignalType, FrequencyMarker } from '../types';
+import { AnalyzerConfig, VisualizerMode, FrequencyScale, AudioSourceType, GeneratorSignalType, FrequencyMarker, FFTWindowFunction } from '../types';
 import { audioAnalyzer, useStreamMetadata } from '../audioEngine';
 import { COLOR_PALETTES, resolvePalette, frequencyToNote, formatDB } from '../utils';
 import { usePersistentState, SafeStorage } from '../utils/storage';
 import { FloatingWindow } from './FloatingWindow';
+import { computeWindowedFFT } from '../utils/fftWindows';
 import { ResetButton, PopOutButton } from './SharedButtons';
 
 interface PresetItem {
@@ -123,6 +125,7 @@ function getInterpolatedDbForFreq(
     return -120;
   }
 
+  if (freq > sampleRate / 2) return -120;
   const fftSize = totalBins * 2;
   const binFloat1 = freq * fftSize / sampleRate;
   const binFloat2 = nextFreq * fftSize / sampleRate;
@@ -139,7 +142,9 @@ function getInterpolatedDbForFreq(
     // Linear-interpolate between adjacent bins for fluid, accurate low-end motion.
     const nextIndex = Math.min(totalBins - 1, binLower + 1);
     const weight = clampedBinFloat1 - binLower;
-    const dbValue = freqData[binLower] * (1 - weight) + freqData[nextIndex] * weight;
+    const amplitude = (db: number) => Number.isFinite(db) ? Math.pow(10, db / 20) : 0;
+    const mag = amplitude(freqData[binLower]) * (1 - weight) + amplitude(freqData[nextIndex]) * weight;
+    const dbValue = mag > 1e-6 ? 20 * Math.log10(mag) : -120;
     return isNaN(dbValue) || dbValue === -Infinity ? -120 : dbValue;
   } else {
     // Zoomed out (mid/high frequencies): one screen pixel covers multiple FFT bins.
@@ -257,7 +262,7 @@ const WaveformOscilloscopeDeckHeader: React.FC<WaveformOscilloscopeDeckHeaderPro
               ? 'bg-[#b20000] border-[#b20000] text-white'
               : 'bg-[#181818] border-[#4a4a4a] text-[#B8B8B8] hover:bg-white hover:text-[#111111]'
           }`}
-          title={isDeckFrozen ? 'Click to unfreeze and resume real-time audio visualization' : 'Halt canvas animation frame updates to inspect specific audio transients in detail'}
+          title={isDeckFrozen ? 'Resume the live display.' : 'Hold the display for inspection. Audio keeps playing.'}
         >
           <Snowflake className={`w-3.5 h-3.5 ${isDeckFrozen ? 'text-white' : 'text-[#b20000]'}`} />
           <span>{isDeckFrozen ? 'Frozen' : 'Freeze'}</span>
@@ -733,6 +738,7 @@ export function AnalyserCanvas({
   };
 
   // Re-usable data arrays for high-frequency renders To minimize GC thrashing
+  const fftTimeRef = useRef<Float32Array | null>(null);
   const floatFreqArrayRef = useRef<Float32Array | null>(null);
   const byteTimeArrayRef = useRef<Uint8Array | null>(null);
   const curveYCoordinatesRef = useRef<Float32Array | null>(null);
@@ -1235,7 +1241,11 @@ export function AnalyserCanvas({
 
       // Fetch audio data or apply decaying gravity
       if (isPlaying) {
-        analyser.getFloatFrequencyData(floatFreqArrayRef.current);
+        if (!fftTimeRef.current || fftTimeRef.current.length !== analyser.fftSize) fftTimeRef.current = new Float32Array(analyser.fftSize);
+        const samples = fftTimeRef.current;
+        analyser.getFloatTimeDomainData(samples);
+        computeWindowedFFT(samples, config.fftWindow || FFTWindowFunction.HANN,
+          floatFreqArrayRef.current, config.smoothing, -120, 0);
         analyser.getByteTimeDomainData(byteTimeArrayRef.current);
       } else {
         if (floatFreqArrayRef.current) {
@@ -1540,7 +1550,7 @@ export function AnalyserCanvas({
         ctx.font = '600 10px "Geist Mono", monospace';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'top';
-        ctx.fillText('dB', plotLeft - 7, 4);
+        ctx.fillText('dBFS', plotLeft - 7, 4);
 
         // 5. Decibel Intervals & Horizontal Grid Lines
         let dbGridIntervals = [0, -6, -12, -18, -24, -30, -36, -42, -48, -54, -60, -72, -84, -96, -108, -120];
@@ -3352,7 +3362,7 @@ export function AnalyserCanvas({
       >
         {/* Visualizer Floating Controller Header */}
         {!isPoppedOut && (
-          <div className="flex flex-col md:flex-row md:items-center justify-between p-3 bg-[#121212] border-b border-[#4a4a4a] z-10 gap-3" id="visualizer-header">
+          <div className="flex flex-col md:flex-row md:items-center justify-between p-3 bg-[#121212] border-b border-[#4a4a4a] z-10 gap-3" id="visualizer-header" title={`Tone levels in dBFS from the combined left and right signal. ${config.fftWindow || 'HANN'} window; frequency spacing ${((audioAnalyzer.getContext()?.sampleRate || 48000) / config.fftSize).toFixed(2)} Hz per FFT bin. Tones between bins may read lower; opposite-polarity stereo can cancel.`}>
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2.5">
                 <div className="p-1.5 bg-[#181818] border border-[#4a4a4a] flex items-center justify-center text-[#b20000]">
@@ -3423,7 +3433,7 @@ export function AnalyserCanvas({
                     ? 'bg-[#b20000] border-[#b20000] text-white'
                     : 'bg-[#181818] border-[#4a4a4a] text-[#B8B8B8] hover:bg-white hover:text-[#111111]'
                 }`}
-                title="Toggle measurement grid lines displaying decibel (dB) amplitudes and logarithmic frequency bounds."
+                title="Show or hide the frequency and level grid."
               >
                 Grid
               </button>
@@ -3434,9 +3444,13 @@ export function AnalyserCanvas({
               <ResetButton
                 id="btn-header-reset-peaks"
                 onClick={handleResetPeaks}
-                title="Instantly wipe and clear all transient peak-hold markers and maximum peaks"
+                title="Clear the spectrum's peak markers."
               />
 
+              <PanelInfo label="About the spectrum">
+                  <p>Shows tone levels in the combined left and right signal. Tones between FFT bins may read lower, and opposite-polarity stereo can cancel when summed. These are tone amplitudes in dBFS, not overall RMS levels.</p>
+                  <p className="mt-2">Window: {config.fftWindow || 'hann'}. Frequency spacing: {((audioAnalyzer.getContext()?.sampleRate || 48000) / config.fftSize).toFixed(2)} Hz per FFT bin.</p>
+                </PanelInfo>
               {onPopOut && (
                 <PopOutButton
                   onClick={onPopOut}
@@ -3583,7 +3597,7 @@ export function AnalyserCanvas({
           {/* Frequency Focus on one line */}
           <div 
             className="flex items-center gap-3"
-            title="Frequency Focus: Instantly restrict viewable spectrum range to specific bands."
+            title="Zoom into a frequency range."
             id="control-frequency-zoom"
           >
             <span className="text-[#B8B8B8] font-medium uppercase text-[11px] tracking-[1px] font-sans">Freq Focus:</span>

@@ -46,11 +46,13 @@ export function LoudnessMeter({
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [hoverY, setHoverY] = useState<number | null>(null);
 
-  const [autoReset, setAutoReset] = usePersistentState<boolean>(
-    'breach_loudness_auto_reset',
-    false,
-    (val) => typeof val === 'boolean'
-  );
+  const [info, setInfo] = useState(audioAnalyzer.getMeasurementInfo());
+  const headroomRef = useRef<HTMLParagraphElement | null>(null);
+  useEffect(() => {
+    const timer = window.setInterval(() => setInfo(audioAnalyzer.getMeasurementInfo()), 500);
+    return () => window.clearInterval(timer);
+  }, []);
+
 
   // Dynamic DOM refs to bypass high frequency state re-renders
   const maxPeakTextRef = useRef<HTMLSpanElement | null>(null);
@@ -100,23 +102,12 @@ export function LoudnessMeter({
     lastClipTimeRef.current = 0;
   };
 
-  // Keep track of previous source to detect changes
-  const prevSourceRef = useRef<string>('');
-
-  useEffect(() => {
-    const currentSource = `${activeSourceType || ''}:${fileUrl || ''}`;
-    if (prevSourceRef.current && prevSourceRef.current !== currentSource) {
-      if (autoReset) {
-        console.log('Auto-resetting LoudnessMeter measurements on source change:', currentSource);
-        handleReset();
-      }
-    }
-    prevSourceRef.current = currentSource;
-  }, [activeSourceType, fileUrl, autoReset]);
-
   // Subscribe to real-time metrics thread directly using custom hook (zero re-render callback)
   useAudioMetrics((newMetrics) => {
     metricsRef.current = newMetrics;
+    if (newMetrics.measuredSeconds === 0 && newMetrics.integrated <= -120) {
+      historyRef.current = []; lastClipTimeRef.current = 0;
+    }
     if (newMetrics.peakLeft >= 0 || newMetrics.peakRight >= 0) {
       lastClipTimeRef.current = Date.now();
     }
@@ -529,22 +520,25 @@ export function LoudnessMeter({
 
     // Header title
     if (complianceStatusHeaderRef.current) {
-      if (status === 'matched') complianceStatusHeaderRef.current.textContent = 'Loudness Compliant';
-      else if (status === 'hot') complianceStatusHeaderRef.current.textContent = 'Deviation: Too Loud';
-      else if (status === 'warm') complianceStatusHeaderRef.current.textContent = 'Deviation: Above Target';
-      else if (status === 'cool') complianceStatusHeaderRef.current.textContent = 'Deviation: Below Target';
-      else if (status === 'cold') complianceStatusHeaderRef.current.textContent = 'Deviation: Deep Underflow';
+      if (status === 'matched') complianceStatusHeaderRef.current.textContent = 'Within target range';
+      else if (status === 'hot') complianceStatusHeaderRef.current.textContent = 'Above reference';
+      else if (status === 'warm') complianceStatusHeaderRef.current.textContent = 'Above reference';
+      else if (status === 'cool') complianceStatusHeaderRef.current.textContent = 'Below reference';
+      else if (status === 'cold') complianceStatusHeaderRef.current.textContent = 'Below reference';
       else complianceStatusHeaderRef.current.textContent = 'Waiting to integrate';
     }
 
-    // Description text
     if (complianceStatusDescRef.current) {
-      if (status === 'matched') complianceStatusDescRef.current.textContent = "This stream's Integrated Loudness perfectly fits the target limit (+/-1.0 LU).";
-      else if (status === 'hot') complianceStatusDescRef.current.textContent = "Your loudness is heavily over-limit (>3.0 LU). Platforms will severely attenuate your stream and peaks risk clipping.";
-      else if (status === 'warm') complianceStatusDescRef.current.textContent = "Your loudness is slightly above target (+1.0 to +3.0 LU). Platforms will apply moderate attenuation.";
-      else if (status === 'cool') complianceStatusDescRef.current.textContent = "Your loudness is slightly below target (-1.0 to -3.0 LU). Safe from clipping, with moderate headroom available.";
-      else if (status === 'cold') complianceStatusDescRef.current.textContent = "Your mix is far below the target platform ceiling (>3.0 LU). Consider increasing master gain or makeup compression.";
-      else complianceStatusDescRef.current.textContent = "Play an audio track or start synth generator loops to capture loudness margins.";
+      complianceStatusDescRef.current.textContent = status === 'idle'
+        ? 'Play audio to compare loudness with this reference.'
+        : 'Compares integrated loudness with your selected reference. Check true peak and delivery requirements separately. Genre targets are creative references.';
+    }
+    if (headroomRef.current) {
+      const available = m.maxPeak > -120;
+      headroomRef.current.textContent = available
+        ? `Headroom to 0 dBTP: ${(-m.maxPeak).toFixed(1)} dB${m.maxPeak >= 0 ? ' · True peak is at or above 0 dBTP. Check your required peak ceiling.' : ' · Check your required peak ceiling.'}`
+        : 'Play audio to measure true-peak headroom.';
+      headroomRef.current.style.color = available && m.maxPeak >= 0 ? '#ff4444' : '#B8B8B8';
     }
 
     // Offset row and value
@@ -570,10 +564,10 @@ export function LoudnessMeter({
 
     // Diagnostic numbers
     if (lraTextRef.current) {
-      lraTextRef.current.textContent = m.integrated <= -120 ? '0.0' : m.lra.toFixed(1);
+      lraTextRef.current.textContent = m.integrated <= -120 || (m.measuredSeconds || 0) < 3 ? '—' : m.lra.toFixed(1);
     }
     if (crestFactorTextRef.current) {
-      crestFactorTextRef.current.textContent = m.integrated <= -120 ? '0.0' : m.crestFactor.toFixed(1);
+      crestFactorTextRef.current.textContent = m.peakLeft <= -120 && m.peakRight <= -120 ? '—' : m.crestFactor.toFixed(1);
     }
     if (maxMomentaryTextRef.current) {
       maxMomentaryTextRef.current.textContent = formatLUFS(m.maxMomentary, 1);
@@ -655,10 +649,11 @@ export function LoudnessMeter({
 
           {/* Right: Reset and Pop out in the upper right corner */}
           <div className="flex items-center gap-2">
+            <label className="text-[10px] text-[#B8B8B8]">Scope <select aria-label="Measurement scope" title="Per track resets measurements when you change tracks. Session keeps them across tracks. Seeking or changing scope resets measurements in either mode." value={info.scope} onChange={e => { audioAnalyzer.setMeasurementScope(e.target.value as 'track' | 'session'); setInfo(audioAnalyzer.getMeasurementInfo()); }} className="bg-[#181818] border border-[#4a4a4a] px-1 py-1"><option value="track">Per track</option><option value="session">Session</option></select></label>
             <ResetButton
               id="btn-reset-meter-stats"
               onClick={handleReset}
-              title="Wipe historical metrics and restart integration"
+              title="Clear the readings and start a new measurement."
             />
 
             {onPopOut && (
@@ -672,6 +667,8 @@ export function LoudnessMeter({
         </div>
       )}
 
+      {isPoppedOut && <div className="flex justify-end px-3 py-2"><label className="text-[10px] text-[#B8B8B8]">Scope <select aria-label="Measurement scope" title="Per track resets measurements when you change tracks. Session keeps them across tracks. Seeking or changing scope resets measurements in either mode." value={info.scope} onChange={e => { audioAnalyzer.setMeasurementScope(e.target.value as 'track' | 'session'); setInfo(audioAnalyzer.getMeasurementInfo()); }} className="bg-[#181818] border border-[#4a4a4a] px-1 py-1"><option value="track">Per track</option><option value="session">Session</option></select></label></div>}
+      {info.error && <p role="status" className="px-3 py-2 text-xs text-[#ff4444]">{info.error}</p>}
       {/* Content wrapper with conditional padding to match standard margins */}
       <div 
         className={`flex flex-col space-y-4 flex-grow ${isPoppedOut ? 'p-0' : 'p-4'}`} 
@@ -756,16 +753,16 @@ export function LoudnessMeter({
         <div className="md:col-span-8 flex flex-col justify-between space-y-3" id="loudness-meters-block">
           
           {/* LUFS labels metrics */}
-          <div className="flex justify-between items-center bg-[#121212] p-1.5 px-2.5 gap-2">
+          <div className="flex flex-wrap justify-between items-center bg-[#121212] p-1.5 px-2.5 gap-2">
             <span className="text-[12px] font-sans font-semibold text-[#F2F2F2] uppercase tracking-[1px]">K-Weighted LUFS Loudness</span>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
               <span className="text-[11px] text-[#B8B8B8] uppercase font-sans font-medium block shrink-0 tracking-[1px]">Target:</span>
               <select
                 id="meter-select-lufs"
                 value={targetLoudness}
                 onChange={(e) => setTargetLoudness(parseFloat(e.target.value))}
                 className="h-[28px] bg-[#181818] text-[11px] text-[#F2F2F2] font-medium border border-[#4a4a4a] hover:border-white px-2 py-0.5 font-sans cursor-pointer transition-colors uppercase tracking-[0.5px]"
-                style={{ width: '190px' }}
+                style={{ width: 'min(190px, 100%)', maxWidth: '100%' }}
               >
                 {![
                   LoudnessStandard.SPOTIFY,
@@ -788,14 +785,14 @@ export function LoudnessMeter({
                     Custom ({typeof targetLoudness === 'number' ? targetLoudness.toFixed(1) : ''} LUFS)
                   </option>
                 )}
-                <optgroup label="Streaming Standards" className="bg-[#181818] text-[#b20000] font-bold text-[10px]">
+                <optgroup label="Streaming References" className="bg-[#181818] text-[#b20000] font-bold text-[10px]">
                   <option value={LoudnessStandard.SPOTIFY} className="bg-[#181818] text-white font-sans">Spotify (-14.0 LUFS)</option>
                   <option value={LoudnessStandard.YOUTUBE} className="bg-[#181818] text-white font-sans">YouTube (-14.0 LUFS)</option>
                   <option value={LoudnessStandard.APPLE_MUSIC} className="bg-[#181818] text-white font-sans">Apple Music (-16.0 LUFS)</option>
                   <option value={LoudnessStandard.TIDAL_DEEZER} className="bg-[#181818] text-white font-sans">Tidal / Deezer (-14.0 LUFS)</option>
                 </optgroup>
                 
-                <optgroup label="Music Genres" className="bg-[#181818] text-[#b20000] font-bold text-[10px]">
+                <optgroup label="Genre References" className="bg-[#181818] text-[#b20000] font-bold text-[10px]">
                   <option value={LoudnessStandard.GENRE_JUNGLE_DNB} className="bg-[#181818] text-white font-sans">Jungle / DnB (-5.0 LUFS)</option>
                   <option value={LoudnessStandard.GENRE_EDM} className="bg-[#181818] text-white font-sans">EDM / Club (-6.0 LUFS)</option>
                   <option value={LoudnessStandard.GENRE_TECHNO_HOUSE} className="bg-[#181818] text-white font-sans">Techno / House (-8.0 LUFS)</option>
@@ -826,7 +823,7 @@ export function LoudnessMeter({
             
             {/* 1. Momentary Loudness */}
             <div className="flex items-center gap-3 w-full">
-              <span className="w-24 shrink-0 text-[11px] font-sans font-medium text-[#B8B8B8] uppercase tracking-[1px] select-none" title="400ms energy level">Momentary</span>
+              <span className="w-24 shrink-0 text-[11px] font-sans font-medium text-[#B8B8B8] uppercase tracking-[1px] select-none" title="Loudness over the last 400 ms.">Momentary</span>
               <div className="flex-1 min-w-0 h-2.5 bg-[#121212] border border-[#4a4a4a] relative overflow-hidden">
                 {/* Target overlay line */}
                 <div 
@@ -847,7 +844,7 @@ export function LoudnessMeter({
 
             {/* 2. Short-Term Loudness */}
             <div className="flex items-center gap-3 w-full">
-              <span className="w-24 shrink-0 text-[11px] font-sans font-medium text-[#B8B8B8] uppercase tracking-[1px] select-none" title="3-second sliding window average">Short-term</span>
+              <span className="w-24 shrink-0 text-[11px] font-sans font-medium text-[#B8B8B8] uppercase tracking-[1px] select-none" title="Loudness over the last 3 seconds.">Short-term</span>
               <div className="flex-1 min-w-0 h-2.5 bg-[#121212] border border-[#4a4a4a] relative overflow-hidden">
                 <div 
                   className="absolute top-0 bottom-0 w-0.5 bg-white z-10" 
@@ -866,7 +863,7 @@ export function LoudnessMeter({
 
             {/* 3. Integrated Loudness */}
             <div className="flex items-center gap-3 w-full">
-              <span className="w-24 shrink-0 text-[11px] font-sans font-medium text-[#B8B8B8] uppercase tracking-[1px] select-none" title="Dual-gated continuous average loudness">Integrated</span>
+              <span className="w-24 shrink-0 text-[11px] font-sans font-medium text-[#B8B8B8] uppercase tracking-[1px] select-none" title="Average loudness across the measured audio, with quiet sections excluded by loudness gating.">Integrated</span>
               <div className="flex-1 min-w-0 h-3.5 bg-[#121212] relative overflow-hidden border border-[#4a4a4a]">
                 <div 
                   className="absolute top-0 bottom-0 w-0.5 bg-white z-10" 
@@ -911,7 +908,7 @@ export function LoudnessMeter({
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 bg-[#b20000]" />
             <span className="text-[11px] font-sans font-bold tracking-[1.2px] text-white uppercase">
-              Loudness Timeline (Past 60 Seconds)
+              Loudness history (up to 60s playing)
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-sans font-bold text-[#cccccc] uppercase tracking-[1px]">
@@ -925,7 +922,7 @@ export function LoudnessMeter({
             </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-block w-3 h-0.5 border-t border-dashed border-[#b20000]" />
-              <span className="text-white font-bold">Target Limit</span>
+              <span className="text-white font-bold">Reference</span>
             </div>
           </div>
         </div>
@@ -968,8 +965,9 @@ export function LoudnessMeter({
           </div>
 
           {/* Delta math tag */}
+          <p ref={headroomRef} className="text-[11px] mt-2">Play audio to measure true-peak headroom.</p>
           <div ref={complianceOffsetRowRef} style={{ display: 'none' }} className="mt-2 text-[11px] font-sans font-medium flex items-center justify-between border-t border-[#4a4a4a] pt-1.5 uppercase tracking-[1px]">
-            <span className="text-[#B8B8B8]">Mismatch Offset:</span>
+            <span className="text-[#B8B8B8]">Target difference:</span>
             <span ref={complianceOffsetValRef} className="text-[13px] text-[#F2F2F2] font-mono font-semibold">
               0.0 LU
             </span>
@@ -983,10 +981,10 @@ export function LoudnessMeter({
         >
           
           <div 
-            title="Loudness Range (LRA): Quantified macro dynamic range spread of files."
+            title="Loudness variation across the measured audio. Short measurements may not represent the track's full range."
             className="flex items-center justify-between bg-[#181818] p-2.5 px-3.5 border border-[#4a4a4a] cursor-default hover:border-white transition-colors"
           >
-            <h4 className="text-[11px] font-sans font-medium tracking-[1.2px] text-[#B8B8B8] uppercase">Loudness Range (LRA)</h4>
+            <h4 title="Early readings may change. Less than 60 seconds is marked provisional; longer measurements may still not represent the full track." className="text-[11px] font-sans font-medium tracking-[1.2px] text-[#B8B8B8] uppercase">Loudness Range (LRA){info.measuredSeconds < 60 ? ' · provisional' : ''}</h4>
             <div className="flex items-baseline gap-1 font-sans">
               <span ref={lraTextRef} className="text-[17px] font-semibold text-[#F2F2F2] font-mono">
                 0.0
@@ -996,10 +994,10 @@ export function LoudnessMeter({
           </div>
 
           <div 
-            title="Crest Factor: Peak-to-RMS power density. Higher is more dynamic."
+            title="Difference between peak and RMS level in the current audio block. Higher values indicate a larger peak-to-average difference."
             className="flex items-center justify-between bg-[#181818] p-2.5 px-3.5 border border-[#4a4a4a] cursor-default hover:border-white transition-colors"
           >
-            <h4 className="text-[11px] font-sans font-medium tracking-[1.2px] text-[#B8B8B8] uppercase">Crest Factor</h4>
+            <h4 className="text-[11px] font-sans font-medium tracking-[1.2px] text-[#B8B8B8] uppercase">Crest Factor · live block</h4>
             <div className="flex items-baseline gap-1 font-sans">
               <span ref={crestFactorTextRef} className="text-[17px] font-semibold text-[#F2F2F2] font-mono">
                 0.0
@@ -1009,7 +1007,7 @@ export function LoudnessMeter({
           </div>
 
           <div 
-            title="Max Momentary: Shortest peak transient loudness caught over a 400ms sliding window."
+            title="Highest momentary loudness in this measurement."
             className="flex items-center justify-between bg-[#181818] p-2.5 px-3.5 border border-[#4a4a4a] cursor-default hover:border-white transition-colors"
           >
             <h4 className="text-[11px] font-sans font-medium tracking-[1.2px] text-[#B8B8B8] uppercase">Max Momentary</h4>
@@ -1021,7 +1019,7 @@ export function LoudnessMeter({
           </div>
 
           <div 
-            title="Max Short-term: Highest block window energy computed over 3-second segments."
+            title="Highest short-term loudness in this measurement."
             className="flex items-center justify-between bg-[#181818] p-2.5 px-3.5 border border-[#4a4a4a] cursor-default hover:border-white transition-colors"
           >
             <h4 className="text-[11px] font-sans font-medium tracking-[1.2px] text-[#B8B8B8] uppercase">Max Short-term</h4>

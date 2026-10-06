@@ -1,3 +1,4 @@
+import { audioAnalyzer } from '../audioEngine';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.5
@@ -242,6 +243,10 @@ export function SettingsPanel({
                   <option value="8192" className="bg-[#181818]">8192</option>
                 </select>
               </div>
+
+              <span className="text-[10px] text-[#999]" title="FFT window and frequency spacing. Bin spacing alone does not describe the window's full frequency resolution.">
+                Window: {config.fftWindow || 'hann'} · {((audioAnalyzer.getContext()?.sampleRate || 48000) / config.fftSize).toFixed(2)} Hz/bin{!audioAnalyzer.getContext() ? ' at 48 kHz' : ''}
+              </span>
 
               {/* Averaging (Smoothing) Slider */}
               <div 

@@ -5,7 +5,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  AnalyzerConfig, 
+  AnalyzerConfig,
+  TrackAnalysisDisplay,
   AudioSourceType, 
   VisualizerMode, 
   FrequencyScale, 
@@ -113,6 +114,7 @@ export default function App() {
   const togglePlaybackRef = useRef<(() => void) | null>(null);
   const [fileUrl, setFileUrl] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
+  const [trackAnalysis, setTrackAnalysis] = useState<TrackAnalysisDisplay | null>(null);
   const [volume, setVolume] = useState<number>(50);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isBypassed, setIsBypassed] = useState<boolean>(() => audioAnalyzer.isBypassed());
@@ -336,59 +338,12 @@ export default function App() {
     }
   }, []);
 
-  if (overlayMode === 'spectrum') {
-    return (
-      <div className="w-screen h-screen bg-transparent p-0 overflow-hidden flex flex-col justify-stretch items-stretch select-none" id="stream-overlay-spectrum">
-        <AnalyserCanvas 
-          config={analyzerConfig}
-          setConfig={setAnalyzerConfig}
-          isPlaying={isPlaying}
-          onSourceChanged={handleSourceChanged}
-          activeSourceType={activeSourceType}
-          setIsPlaying={setIsPlaying}
-          togglePlaybackRef={togglePlaybackRef}
-          fileUrl={fileUrl}
-          setFileUrl={setFileUrl}
-          fileName={fileName}
-          setFileName={setFileName}
-          hardwareSampleRate={hardwareSampleRate}
-          isFullscreen={isFullscreen}
-          setIsFullscreen={setIsFullscreen}
-          toggleFullscreenRef={toggleFullscreenRef}
-          isPoppedOut={true} // forces container to take maximum screen/frame volume
-          hideSplitWaterfall={true}
-        />
-      </div>
-    );
-  }
-
-  if (overlayMode === 'loudness') {
-    return (
-      <div className="w-screen h-screen bg-transparent p-4 overflow-auto select-none" id="stream-overlay-loudness">
-        <LoudnessMeter 
-          isPlaying={isPlaying}
-          targetLoudness={targetLoudness}
-          setTargetLoudness={setTargetLoudness}
-          isPoppedOut={true}
-          activeSourceType={activeSourceType}
-          fileUrl={fileUrl}
-        />
-      </div>
-    );
-  }
-
-  if (overlayMode === 'vector' || overlayMode === 'scope') {
-    return (
-      <div className="w-screen h-screen bg-transparent p-4 overflow-auto select-none flex items-center justify-center" id="stream-overlay-vector">
-        <div className="w-full max-w-md">
-          <StereoVectorScope 
-            isActive={isPlaying}
-            isPoppedOut={true}
-            config={analyzerConfig}
-          />
-        </div>
-      </div>
-    );
+  if (overlayMode) {
+    return <main className="min-h-screen bg-[#121212] text-[#F2F2F2] p-6 font-sans">
+      <h1 className="text-sm uppercase tracking-widest">BREACH. · Standalone overlay unavailable</h1>
+      <p className="mt-3 text-sm text-[#aaa]">This window is not connected to the analyzer. Open the app and use a panel's pop-out control to view live measurements.</p>
+      <a href={window.location.pathname} className="inline-block mt-4 text-sm text-[#ff4444] underline">Open analyzer</a>
+    </main>;
   }
 
   return (
@@ -424,7 +379,7 @@ export default function App() {
         </div>
 
         {/* Sticky Header Engine Control & Volume */}
-        <div className="flex items-center gap-3 sm:mr-24" id="header-engine-control">
+        <div className="flex flex-wrap items-center gap-3 sm:mr-24 max-w-full" id="header-engine-control">
           
           {/* Master Volume */}
           <div className={`flex items-center gap-2.5 px-3 py-1.5 border border-[#4a4a4a] bg-[#181818] w-40 sm:w-48 transition-colors duration-150 ${
@@ -558,6 +513,7 @@ export default function App() {
                   isPlaying={isPlaying}
                   setIsPlaying={setIsPlaying}
                   togglePlaybackRef={togglePlaybackRef}
+                  trackAnalysis={trackAnalysis}
                   fileUrl={fileUrl}
                   setFileUrl={setFileUrl}
                   fileName={fileName}
@@ -609,6 +565,7 @@ export default function App() {
             </div>
           ) : (
             <DJWaveformDeck 
+              onTrackAnalysis={setTrackAnalysis}
               fileUrl={fileUrl}
               fileName={fileName}
               isPlaying={isPlaying}
@@ -958,6 +915,7 @@ export default function App() {
         >
           <div className="w-full h-full bg-[#121212] overflow-hidden flex flex-col" id="popout-dj-waveform-container">
             <DJWaveformDeck
+              onTrackAnalysis={setTrackAnalysis}
               fileUrl={fileUrl}
               fileName={fileName}
               isPlaying={isPlaying}

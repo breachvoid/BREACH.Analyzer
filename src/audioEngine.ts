@@ -5,8 +5,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { AudioSourceType, GeneratorSignalType, LoudnessMetrics } from './types';
-import { AudioFileRegistry, fetchPartialArrayBuffer, getAudioFileSize } from './utils';
-import { parseAudioMetadata } from './utils/audioMetadata';
+import { AudioFileRegistry } from './utils';
+import { readAudioFileMetadata, unknownAudioMetadata, type BitrateKind } from './utils/audioMetadata';
 
 export class AudioAnalyzerEngine {
   private audioContext: AudioContext | null = null;
@@ -73,15 +73,18 @@ export class AudioAnalyzerEngine {
 
   // Metadata properties indicating active input sampleRate, buffer size, bitrate, and format/codec
   private activeMetadata = {
-    sampleRate: 48000,
+    sampleRate: 0,
     bufferSize: 2048,
-    bitrate: 2304,
-    codec: 'Synth Signal',
+    bitrate: 0,
+    codec: 'Unknown',
+    analysisError: '',
+    sourceUrl: undefined as string | undefined,
+    bitrateKind: undefined as BitrateKind | undefined,
     channelCount: 2 as number | undefined,
     trackChannelCount: undefined as number | undefined,
     splitterInputChannelCount: undefined as number | undefined,
     bitDepth: undefined as number | undefined,
-    isVBR: false as boolean | undefined
+    isVBR: undefined as boolean | undefined
   };
   private metadataListeners: ((meta: typeof this.activeMetadata) => void)[] = [];
 
@@ -107,6 +110,65 @@ export class AudioAnalyzerEngine {
   private currentGenType: GeneratorSignalType = GeneratorSignalType.SINE;
   private generatorFrequency = 440;
   private sourceActive = false;
+  private startGeneration = 0;
+  private activeFileUrl = '';
+  private sourceName = 'No source';
+  private measuredSources: { name: string; url: string }[] = [];
+  private measurementScope: 'track' | 'session' = 'track';
+  private measurementEpoch = 0;
+  private resetAt = new Date().toISOString();
+  private sourceError = '';
+
+  public getMeasurementInfo() {
+    return { scope: this.measurementScope, epoch: this.measurementEpoch, resetAt: this.resetAt,
+      source: this.sourceName, sourceUrl: this.activeFileUrl, sources: this.measuredSources.map(source => ({ ...source })), running: this.sourceActive,
+      error: this.sourceError, measuredSeconds: this.currentMetrics.measuredSeconds || 0 };
+  }
+
+  public setMeasurementScope(scope: 'track' | 'session') {
+    if (this.measurementScope === scope) return;
+    this.measurementScope = scope;
+    this.resetMetrics();
+  }
+
+  public selectFile(url: string, name?: string) {
+    if (url === this.activeFileUrl) {
+      if (name) { this.sourceName = name; const last = this.measuredSources[this.measuredSources.length - 1]; if (last?.url === url) last.name = name; }
+      return;
+    }
+    ++this.startGeneration;
+    this.pause();
+    ++this.loadRequestId;
+    this.activeFileUrl = url;
+    this.sourceName = name || AudioFileRegistry.get(url)?.name || url || 'No source';
+    this.sourceError = '';
+    this.updateMetadata({ analysisError: '' });
+    this.updateMetadata({ ...unknownAudioMetadata(url), sourceUrl: url,
+      bitDepth: undefined, bitrateKind: undefined, isVBR: undefined, trackChannelCount: undefined });
+    if (this.measurementScope === 'track' || !url) this.resetMetrics();
+    else {
+      this.measuredSources.push({ name: this.sourceName, url });
+      ++this.measurementEpoch;
+      this.currentMetrics = { ...this.currentMetrics, momentary: -120, shortTerm: -120, peakLeft: -120, peakRight: -120 };
+      this.metricsListeners.forEach(l => l(this.currentMetrics));
+      this.loudnessAnalyser?.port.postMessage({ type: 'SOURCE', epoch: this.measurementEpoch });
+    }
+  }
+
+  public sourceUnavailable(message: string) {
+    ++this.startGeneration;
+    this.sourceError = message;
+    this.updateMetadata({ analysisError: message });
+    this.pause();
+    this.resetMetrics();
+  }
+
+  public seek(time: number) {
+    if (!this.audioElement) return;
+    this.handleSeek();
+    this.audioElement.currentTime = Math.max(0, time);
+  }
+
   private masterVolume = 0.5;
   private outputMuted = false;
   private outputBypassed = false;
@@ -128,6 +190,7 @@ export class AudioAnalyzerEngine {
       maxPeak: -120,
       crestFactor: 0,
       phaseCorrelation: 0,
+      measuredSeconds: 0,
       phaseCorrelationValid: false
     };
   }
@@ -244,11 +307,12 @@ export class AudioAnalyzerEngine {
     this.samplesSinceLastGating = 0;
     this._blockCount = 0;
     this.currentMetrics = this.getEmptyMetrics();
-    
+    ++this.measurementEpoch;
+    this.resetAt = new Date().toISOString();
+    this.measuredSources = this.activeFileUrl ? [{ name: this.sourceName, url: this.activeFileUrl }] : [];
+    this.metricsListeners.forEach(l => l(this.currentMetrics));
     if (this.loudnessAnalyser) {
-      this.loudnessAnalyser.port.postMessage({ type: 'RESET' });
-    } else {
-      this.metricsListeners.forEach(l => l(this.currentMetrics));
+      this.loudnessAnalyser.port.postMessage({ type: 'RESET', epoch: this.measurementEpoch });
     }
   }
 
@@ -260,6 +324,7 @@ export class AudioAnalyzerEngine {
       this.audioElement.pause();
     }
     this.sourceActive = false;
+    this.loudnessAnalyser?.port.postMessage({ type: 'TRANSPORT', running: false });
     this.notifyState();
   }
 
@@ -268,23 +333,29 @@ export class AudioAnalyzerEngine {
    * and resets continuous measurement accumulation to prevent mixing disjoint audio segments.
    */
   public handleSeek() {
-    this.momentaryHistory = [];
-    this.shortTermHistory = [];
-    this.gatingBlocks = [];
-    if (this.loudnessAnalyser) {
-      this.loudnessAnalyser.port.postMessage({ type: 'SEEK' });
-    }
+    // A discontinuity starts a fresh, consistently scoped epoch, even in session mode.
+    this.resetMetrics();
   }
 
   /**
    * Start a specified source stream
    */
   public async startSource(sourceType: AudioSourceType, options?: { element?: HTMLAudioElement; generatorType?: GeneratorSignalType; freq?: number; deviceId?: string }) {
+    if (sourceType === AudioSourceType.AUDIO_FILE && options?.element) this.selectFile(options.element.src);
+    const generation = ++this.startGeneration;
     this.initContext();
     if (this.audioContext!.state === 'suspended') {
       await this.audioContext!.resume();
     }
 
+    if (generation !== this.startGeneration) return;
+    if (sourceType === AudioSourceType.AUDIO_FILE && (this.activeMetadata.trackChannelCount || 0) > 2) {
+      this.sourceUnavailable('File analysis supports mono/stereo only; multichannel layout is unsupported.');
+      throw new Error(this.sourceError);
+    }
+
+    this.sourceError = '';
+    this.updateMetadata({ analysisError: '' });
     // If resuming playback on the already active audio element with a healthy pipeline,
     // preserve the AudioWorklet and accumulated ITU-R BS.1770 / EBU R128 metrics!
     if (
@@ -295,7 +366,10 @@ export class AudioAnalyzerEngine {
       this.sourceNode &&
       this.loudnessAnalyser
     ) {
+      this.sourceError = '';
       this.sourceActive = true;
+      this.loudnessAnalyser.port.postMessage({ type: 'TRANSPORT', running: true });
+      this.readElementMetadata(options.element);
       this.notifyState();
       return;
     }
@@ -303,19 +377,28 @@ export class AudioAnalyzerEngine {
     // Stop current active nodes
     this.stopCurrent();
 
+    this.updateMetadata({ sourceUrl: undefined, bitrateKind: undefined, bitDepth: undefined, isVBR: undefined });
     this.currentSourceType = sourceType;
+    if (sourceType !== AudioSourceType.AUDIO_FILE) {
+      this.activeFileUrl = '';
+      this.sourceName = sourceType === AudioSourceType.GENERATOR ? 'Generator · ' + (options?.generatorType || this.currentGenType) : sourceType;
+    }
     this.sourceActive = true;
 
     try {
       // Ensure AudioWorklet is registered before building pipeline
       await this.ensureWorkletRegistered(this.audioContext!);
 
+      if (generation !== this.startGeneration) return;
       // Build main analyzer pipeline
       this.buildPipeline();
+      if (!this.loudnessAnalyser) throw new Error('AudioWorklet unavailable. Use a supported browser on HTTPS or localhost.');
+      this.resetMetrics();
 
       switch (sourceType) {
         case AudioSourceType.MICROPHONE:
-          await this.setupMicrophone(options?.deviceId);
+          await this.setupMicrophone(options?.deviceId, generation);
+          if (generation !== this.startGeneration) return;
           const micSettings = this.micStream?.getAudioTracks()[0]?.getSettings();
           this.updateMetadata({
             sampleRate: this.audioContext?.sampleRate || 48000,
@@ -328,7 +411,8 @@ export class AudioAnalyzerEngine {
           });
           break;
         case AudioSourceType.SYSTEM_CAPTURE:
-          await this.setupSystemCapture();
+          await this.setupSystemCapture(generation);
+          if (generation !== this.startGeneration) return;
           const pSettings = this.screenStream?.getAudioTracks()[0]?.getSettings();
           this.updateMetadata({
             sampleRate: this.audioContext?.sampleRate || 48000,
@@ -364,6 +448,7 @@ export class AudioAnalyzerEngine {
 
       this.notifyState();
     } catch (err: any) {
+      if (generation !== this.startGeneration) return;
       const errMsg = err?.message || String(err);
       const isFeaturePolicyError = errMsg.includes('display-capture') || errMsg.includes('permissions policy') || errMsg.includes('disallowed');
       if (isFeaturePolicyError) {
@@ -372,6 +457,10 @@ export class AudioAnalyzerEngine {
         console.error('Failed to start source:', err);
       }
       this.stopCurrent();
+      this.sourceError = errMsg;
+      this.updateMetadata({ analysisError: errMsg });
+      this.resetMetrics();
+      this.notifyState();
       throw err;
     }
   }
@@ -380,11 +469,13 @@ export class AudioAnalyzerEngine {
    * Stop analyzing and playing
    */
   public stop() {
+    ++this.startGeneration;
     this.stopCurrent();
     this.notifyState();
   }
 
   private stopCurrent() {
+    ++this.loadRequestId;
     this.sourceActive = false;
 
     // Disconnect synth drone
@@ -511,7 +602,7 @@ export class AudioAnalyzerEngine {
     const promise = (async () => {
       const workletCode = `
 class LoudnessProcessor extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options) {
     super();
     this.mSize = Math.round(sampleRate * 0.4);
     this.sSize = Math.round(sampleRate * 3);
@@ -540,46 +631,33 @@ class LoudnessProcessor extends AudioWorkletProcessor {
     const hpA0 = 1 + hpK / hpQ + hpK * hpK;
     this.highpass = [1, -2, 1, 2 * (hpK * hpK - 1) / hpA0,
       (1 - hpK / hpQ + hpK * hpK) / hpA0];
+    this.supportedLayouts = options?.processorOptions?.supportedLayouts || [1, 2, 5, 6];
     this.channels = [];
+    this.running = true;
+    this.epoch = 0;
     this.resetMetrics();
     this.port.onmessage = event => {
-      if (event.data.type === 'RESET') this.resetMetrics();
+      if (event.data.type === 'RESET') { this.epoch = event.data.epoch ?? this.epoch; this.resetMetrics(); }
+      if (event.data.type === 'TRANSPORT') this.running = event.data.running;
+      if (event.data.type === 'SOURCE') {
+        this.epoch = event.data.epoch ?? this.epoch;
+        const saved = { gateCounts: this.gateCounts, gatePowers: this.gatePowers, lraCounts: this.lraCounts,
+          lraPowers: this.lraPowers, maxM: this.maxM, maxS: this.maxS, maxPeak: this.maxPeak, elapsedSamples: this.elapsedSamples };
+        this.resetMetrics(); Object.assign(this, saved); this.updateStatistics();
+      }
       if (event.data.type === 'SEEK') this.handleSeek();
     };
   }
 
   handleSeek() {
-    this.powerRing.fill(0);
-    this.position = 0;
-    this.samples = 0;
-    this.samplesSinceMessage = 0;
-    this.mSum = 0;
-    this.sSum = 0;
-    this.maxM = 0;
-    this.maxS = 0;
-    this.sLL = 0;
-    this.sRR = 0;
-    this.sLR = 0;
-    for (let c = 0; c < this.channels.length; c++) {
-      this.channels[c].shelf.fill(0);
-      this.channels[c].hp.fill(0);
-      this.channels[c].history.fill(0);
-      this.channels[c].position = 0;
-      this.channels[c].squareSum = 0;
-      this.channels[c].framePeak = 0;
-    }
-    this.gateCounts.fill(0);
-    this.gatePowers.fill(0);
-    this.lraCounts.fill(0);
-    this.lraPowers.fill(0);
-    this.integrated = -120;
-    this.lra = 0;
+    this.resetMetrics();
   }
 
   resetMetrics() {
     this.powerRing.fill(0);
     this.position = 0;
     this.samples = 0;
+    this.elapsedSamples = 0;
     this.samplesSinceMessage = 0;
     this.mSum = 0;
     this.sSum = 0;
@@ -637,9 +715,14 @@ class LoudnessProcessor extends AudioWorkletProcessor {
   }
 
   process(inputs, outputs) {
+    if (!this.running) return true;
     const input = inputs[0];
     if (!input || !input.length) return true;
     const count = input.length;
+    if (!this.supportedLayouts.includes(count)) {
+      this.port.postMessage({ type: 'UNSUPPORTED', channelCount: count });
+      return true;
+    }
     while (this.channels.length < count) {
       this.channels.push({ shelf: new Float64Array(2), hp: new Float64Array(2),
         history: new Float64Array(12), position: 0, peak: 0, framePeak: 0, squareSum: 0 });
@@ -684,6 +767,7 @@ class LoudnessProcessor extends AudioWorkletProcessor {
       this.powerRing[this.position] = power;
       this.position = (this.position + 1) % this.sSize;
       this.samples++;
+      this.elapsedSamples++;
       if (this.samples >= this.mSize) this.maxM = Math.max(this.maxM, this.mSum / this.mSize);
       if (this.samples >= this.sSize) this.maxS = Math.max(this.maxS, this.sSum / this.sSize);
       if (this.samples >= this.mSize && (this.samples - this.mSize) % this.hop === 0) {
@@ -704,13 +788,16 @@ class LoudnessProcessor extends AudioWorkletProcessor {
         this.db(channel.framePeak) - 10 * Math.log10(channel.squareSum / this.samplesSinceMessage));
       channel.squareSum = 0; channel.framePeak = 0;
     }
+    const peakLeft = this.db(this.channels[0].peak);
+    const peakRight = count > 1 ? this.db(this.channels[1].peak) : -120;
+    for (const channel of this.channels) channel.peak = 0;
     this.samplesSinceMessage = 0;
-    this.port.postMessage({ type: 'METRICS', metrics: {
+    this.port.postMessage({ type: 'METRICS', epoch: this.epoch, metrics: {
       momentary: this.samples >= this.mSize ? this.loudness(Math.max(0, this.mSum / this.mSize)) : -120,
       shortTerm: this.samples >= this.sSize ? this.loudness(Math.max(0, this.sSum / this.sSize)) : -120,
       integrated: this.integrated, lra: this.lra,
       maxMomentary: this.loudness(this.maxM), maxShortTerm: this.loudness(this.maxS),
-      peakLeft: this.db(this.channels[0].peak), peakRight: count > 1 ? this.db(this.channels[1].peak) : -120,
+      peakLeft, peakRight, measuredSeconds: this.elapsedSamples / sampleRate,
       maxPeak: this.db(this.maxPeak), crestFactor: crest,
       phaseCorrelation: validPhase ? Math.max(-1, Math.min(1, this.sLR / Math.sqrt(this.sLL * this.sRR))) : 0,
       phaseCorrelationValid: validPhase
@@ -782,6 +869,7 @@ registerProcessor('loudness-processor', LoudnessProcessor);
     if (ctx.audioWorklet) {
       try {
         this.loudnessAnalyser = new AudioWorkletNode(ctx, 'loudness-processor', {
+          processorOptions: { supportedLayouts: [1, 2] },
           numberOfInputs: 1,
           numberOfOutputs: 1,
           outputChannelCount: [2]
@@ -799,7 +887,11 @@ registerProcessor('loudness-processor', LoudnessProcessor);
 
         // Bind buffer metrics computational loop callback
         this.loudnessAnalyser.port.onmessage = (event) => {
-          if (this.sourceActive && event.data.type === 'METRICS') {
+          if (event.data.type === 'UNSUPPORTED' && !this.sourceError) {
+            this.sourceUnavailable('Unsupported channel layout: ' + event.data.channelCount + ' channels');
+            return;
+          }
+          if (this.sourceActive && !this.sourceError && event.data.type === 'METRICS' && event.data.epoch === this.measurementEpoch) {
             const metrics = event.data.metrics;
             this.currentMetrics = metrics;
             
@@ -825,10 +917,10 @@ registerProcessor('loudness-processor', LoudnessProcessor);
   /**
    * Captures microphone stream and hooks it up to pipeline
    */
-  private async setupMicrophone(deviceId?: string) {
+  private async setupMicrophone(deviceId: string | undefined, generation: number) {
     const ctx = this.audioContext!;
     
-    this.micStream = await navigator.mediaDevices.getUserMedia({
+    const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: deviceId ? { exact: deviceId } : undefined,
         echoCancellation: false,
@@ -837,7 +929,9 @@ registerProcessor('loudness-processor', LoudnessProcessor);
       }
     });
 
-    this.sourceNode = ctx.createMediaStreamSource(this.micStream);
+    if (generation !== this.startGeneration) { stream.getTracks().forEach(track => track.stop()); return; }
+    this.micStream = stream;
+    this.sourceNode = ctx.createMediaStreamSource(stream);
     
     // Connect to central routing node for robust visualizer and upmixing support
     this.sourceNode.connect(this.preAnalysisGain!);
@@ -847,11 +941,11 @@ registerProcessor('loudness-processor', LoudnessProcessor);
   /**
    * Captures screen/tab audio output stream and hooks it up to pipeline
    */
-  private async setupSystemCapture() {
+  private async setupSystemCapture(generation: number) {
     const ctx = this.audioContext!;
     
     // Request screen/tab media with audio channel enabled and stereo options
-    this.screenStream = await navigator.mediaDevices.getDisplayMedia({
+    const stream = await navigator.mediaDevices.getDisplayMedia({
       video: {
         width: 1,
         height: 1,
@@ -865,7 +959,9 @@ registerProcessor('loudness-processor', LoudnessProcessor);
       } as any
     });
 
-    const audioTracks = this.screenStream.getAudioTracks();
+    if (generation !== this.startGeneration) { stream.getTracks().forEach(track => track.stop()); return; }
+    this.screenStream = stream;
+    const audioTracks = stream.getAudioTracks();
     if (audioTracks.length === 0) {
       this.screenStream.getTracks().forEach(track => track.stop());
       this.screenStream = null;
@@ -906,89 +1002,42 @@ registerProcessor('loudness-processor', LoudnessProcessor);
     this.sourceNode.connect(this.preAnalysisGain!);
     this.connectOutput();
 
-    // Reset accumulated metrics for a new source/track change
-    this.resetMetrics();
+    this.readElementMetadata(elem);
+    // SourceSelector owns playback gestures; graph setup must not restart a paused element.
+  }
 
-    // Initial estimation properties
-    let estSampleRate = 44100;
-    let estBitrate = 320;
-    let estCodec = 'MPEG Layer-3 (MP3)';
-    
-    // Support either src element directly or parent references
+  private readElementMetadata(elem: HTMLAudioElement) {
+
     const currentUrl = elem.src || '';
-    const urlLower = currentUrl.toLowerCase();
-    if (urlLower.endsWith('.wav')) {
-      estCodec = 'Linear PCM (WAV)';
-      estSampleRate = 44100;
-      estBitrate = 1411;
-    } else if (urlLower.endsWith('.flac')) {
-      estCodec = 'FLAC Audio (Lossless)';
-      estSampleRate = 44100;
-      estBitrate = 700;
-    } else if (urlLower.endsWith('.m4a') || urlLower.endsWith('.aac') || urlLower.endsWith('.mp4')) {
-      estCodec = 'AAC Audio (M4A)';
-      estSampleRate = 44100;
-      estBitrate = 256;
-    } else if (urlLower.endsWith('.ogg')) {
-      estCodec = 'Ogg Vorbis (OGG)';
-      estSampleRate = 44100;
-      estBitrate = 192;
-    }
-
+    const registeredFile = AudioFileRegistry.get(currentUrl);
     this.updateMetadata({
-      sampleRate: estSampleRate,
-      bufferSize: this.bufSize,
-      bitrate: estBitrate,
-      codec: estCodec
+      ...unknownAudioMetadata(registeredFile?.name || currentUrl), sourceUrl: currentUrl,
+      bufferSize: this.bufSize, bitDepth: undefined, isVBR: undefined, bitrateKind: undefined,
+      trackChannelCount: undefined
     });
-
     if (currentUrl) {
       const reqId = ++this.loadRequestId;
-      const fetchAndDecode = async () => {
+      const fetchMetadata = async () => {
         try {
-          const arrayBuffer = await fetchPartialArrayBuffer(currentUrl, 3 * 1024 * 1024);
-          if (reqId !== this.loadRequestId) return;
-
-          const registeredFile = AudioFileRegistry.get(currentUrl);
-          const fileSize = await getAudioFileSize(currentUrl, registeredFile);
-          const duration = elem.duration || 1;
-
-          // Parse native file metadata directly from binary header
-          const parsed = parseAudioMetadata(arrayBuffer, fileSize, duration, estCodec);
-          if (reqId !== this.loadRequestId) return;
-
-          // Decode small portion to inspect decoded channels if needed
-          let channelCount = parsed.channels;
-          try {
-            const decodedBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
-            if (reqId !== this.loadRequestId) return;
-            if (decodedBuffer && decodedBuffer.numberOfChannels) {
-              channelCount = decodedBuffer.numberOfChannels;
-            }
-          } catch (e) {}
-
-          if (reqId !== this.loadRequestId) return;
-
+          const parsed = await readAudioFileMetadata(currentUrl, registeredFile, elem.duration);
+          if (reqId !== this.loadRequestId || elem.src !== currentUrl || this.currentSourceType !== AudioSourceType.AUDIO_FILE) return;
+          if ((parsed.channels || 0) > 2) {
+            this.sourceUnavailable('File analysis supports mono/stereo only; decoded multichannel layout is not verified.');
+          }
           this.updateMetadata({
-            sampleRate: parsed.sampleRate,
-            bitrate: parsed.bitrate,
-            codec: parsed.codec,
-            bitDepth: parsed.bitDepth,
-            isVBR: parsed.isVBR,
-            bufferSize: this.bufSize,
-            trackChannelCount: channelCount,
+            sampleRate: parsed.sampleRate, bitrate: parsed.bitrate, codec: parsed.codec,
+            bitDepth: parsed.bitDepth, isVBR: parsed.isVBR, bitrateKind: parsed.bitrateKind,
+            sourceUrl: currentUrl, bufferSize: this.bufSize, trackChannelCount: parsed.channels || undefined,
             splitterInputChannelCount: this.preAnalysisGain?.channelCount ?? 2
           });
         } catch (err) {
-          console.warn('Asynchronous engine background decode failed, maintained estimations:', err);
+          console.warn('Native audio metadata unavailable:', err);
         }
       };
-      
-      fetchAndDecode();
+      fetchMetadata();
     }
 
-    // Ensure state starts playing
-    elem.play().catch(err => console.log('Audio autoplay prevented, wait for action:', err));
+
   }
 
   /**

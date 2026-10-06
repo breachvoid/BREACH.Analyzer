@@ -91,13 +91,13 @@ export function StereoVectorScope({
 
   const getCorrelationDescription = (corr: number): string => {
     if (corr > 0.9) {
-      return "High correlation: Strongly similar left and right channels.";
+      return "Left and right are closely correlated. This does not mean they are identical.";
     } else if (corr > 0.5) {
-      return "Positive correlation: Check a mono downmix to assess compatibility.";
+      return "Left and right share some content. Check the mix in mono.";
     } else if (corr >= 0) {
-      return "Low correlation: Limited similarity between channels; check the mono downmix.";
+      return "Left and right have little correlation. Check the mix in mono.";
     } else {
-      return "Negative correlation: Cancellation may occur in the mono downmix.";
+      return "Left and right oppose each other. Some content may cancel in mono.";
     }
   };
 
@@ -231,7 +231,7 @@ export function StereoVectorScope({
         if (phaseCorrTextRef.current) phaseCorrTextRef.current.textContent = 'N/A';
         if (barRef.current) barRef.current.style.width = '0%';
         if (peakHoldRef.current) peakHoldRef.current.style.display = 'none';
-        if (descRef.current) descRef.current.textContent = 'Correlation unavailable: silence or a missing channel.';
+        if (descRef.current) descRef.current.textContent = 'Correlation needs a signal in both channels.';
       }
 
       // --- 2. Goniometer rendering ---
@@ -448,7 +448,7 @@ export function StereoVectorScope({
       {/* 1. Header with Title & Action Buttons (Reset/Popout) */}
       {!isPoppedOut && (
         <div className="flex flex-col md:flex-row md:items-center justify-between p-3 bg-[#121212] border-b border-[#4a4a4a] z-10 gap-3" id="vector-panel-header">
-          <div className="flex items-center gap-2.5 cursor-default" title="Lissajous Mid/Side Phase Space Vector Monitor" id="vector-panel-title-group">
+          <div className="flex items-center gap-2.5 cursor-default" title="Shows how closely the left and right signals move together. Listen in mono to check for cancellation." id="vector-panel-title-group">
             <div className="p-1.5 bg-[#181818] border border-[#4a4a4a] text-[#b20000] flex items-center justify-center">
               <Compass className="w-4 h-4" />
             </div>
@@ -460,7 +460,7 @@ export function StereoVectorScope({
           <div className="flex items-center gap-2">
             <ResetButton 
               onClick={handleResetPeak} 
-              title="Reset captured correlation minimum limits"
+              title="Reset the captured correlation range."
             />
             
             {onPopOut && (
@@ -477,7 +477,7 @@ export function StereoVectorScope({
       <div 
         className={`flex flex-col space-y-4 flex-grow ${isPoppedOut ? 'p-0' : 'p-4'}`} 
         id="vector-panel-content"
-        style={isPoppedOut ? undefined : { height: '510px', width: '499px' }}
+        style={isPoppedOut ? undefined : { minHeight: '510px', width: '100%', maxWidth: '499px' }}
       >
 
         {/* 2. Goniometer Canvas primary visual focus at the TOP of the content body */}
@@ -490,8 +490,8 @@ export function StereoVectorScope({
           style={{
             borderWidth: '0px',
             backgroundColor: 'transparent',
-            width: '430px',
-            marginLeft: '17px',
+            width: '100%', maxWidth: '430px',
+            marginLeft: 'auto', marginRight: 'auto',
             padding: '2px',
             marginTop: '8px'
           }}
@@ -509,7 +509,7 @@ export function StereoVectorScope({
       </div>
 
       {/* 3. HTML / React Phase Correlation Meter & Information Text */}
-      <div className="flex flex-col w-[430px] ml-[17px] mt-2" id="react-correlation-panel">
+      <div className="flex flex-col w-full max-w-[430px] mx-auto mt-2" id="react-correlation-panel">
         {/* Numbers strip: Min (-), Current, Max */}
         <div className="flex justify-between font-sans text-[11px] font-bold px-1 select-none text-white tracking-[1px] uppercase">
           <span ref={minCorrTextRef} className="text-left w-20 text-[#b20000]">-</span>
@@ -558,7 +558,7 @@ export function StereoVectorScope({
 
         {/* Dynamic description of the phase status */}
         <p ref={descRef} className="text-[11px] font-sans font-normal text-center text-[#aaaaaa] leading-normal uppercase tracking-wider" id="correlation-explanation-text">
-          High correlation: Strongly similar left and right channels.
+          Left and right are closely correlated. This does not mean they are identical.
         </p>
       </div>
 

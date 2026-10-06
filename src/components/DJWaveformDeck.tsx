@@ -1,3 +1,5 @@
+import { PanelInfo } from './PanelInfo';
+import { analyzeWaveformSlice, createWaveformFilterState } from '../utils/waveformAnalysis';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -7,25 +9,20 @@ import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { 
   ZoomIn, 
   ZoomOut, 
-  Lock, 
-  Unlock, 
   Volume2, 
   Play, 
   Pause, 
   Plus, 
   Minus, 
-  ChevronLeft, 
-  ChevronRight, 
-  Disc,
-  RotateCw,
+  AudioLines,
   Sliders,
   Snowflake,
   Activity,
   Layers,
   Sparkles
 } from 'lucide-react';
-import { audioAnalyzer, useStreamMetadata } from '../audioEngine';
-import { AnalyzerConfig } from '../types';
+import { audioAnalyzer } from '../audioEngine';
+import { AnalyzerConfig, type TrackAnalysisDisplay } from '../types';
 import { PopOutButton, ResetButton } from './SharedButtons';
 import { detectBpmFromAudio, detectKeyFromAudio } from '../utils/audioAnalysis';
 import { AudioFileRegistry } from '../utils';
@@ -39,6 +36,7 @@ export interface DJWaveformDeckProps {
   isPoppedOut?: boolean;
   onPopOut?: () => void;
   config?: AnalyzerConfig;
+  onTrackAnalysis?: (result: TrackAnalysisDisplay) => void;
 }
 
 interface WaveSlice {
@@ -57,33 +55,25 @@ const SLICES_PER_SECOND = 75; // 75 slices/sec gives ~13.3ms resolution, ideal f
 
 export function DJWaveformDeck({
   fileUrl = '',
-  fileName = '',
   isPlaying,
   setIsPlaying,
   togglePlaybackRef,
   isPoppedOut = false,
   onPopOut,
-  config
+  config,
+  onTrackAnalysis
 }: DJWaveformDeckProps) {
-  const streamMetadata = useStreamMetadata();
 
   // Playback & Timing State
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const [bpm, setBpm] = useState<number>(0);
-  const [bpmSource, setBpmSource] = useState<'auto' | 'none'>('none');
-  const [musicalKey, setMusicalKey] = useState<string>('Unknown');
-  const [camelotKey, setCamelotKey] = useState<string>('—');
-  const [keyCorrelation, setKeyCorrelation] = useState<number>(0);
   const [gridOffset, setGridOffset] = useState<number>(0);
-  const [isGridLocked, setIsGridLocked] = useState<boolean>(true);
   const [zoomLevel, setZoomLevel] = useState<number>(3.5);
-  const [activeTab, setActiveTab] = useState<'MONITOR' | 'GRID_ANALYSIS'>('GRID_ANALYSIS');
+  const [decodeState, setDecodeState] = useState('');
   const [isFrozen, setIsFrozen] = useState<boolean>(false);
-  const [beatFlash, setBeatFlash] = useState<boolean>(false);
 
-  // Manual grid phase lock and race condition tokens
-  const isManualGridRef = useRef<boolean>(false);
+  // Track decoding race condition token
   const decodeRequestIdRef = useRef<number>(0);
 
   // Canvases
@@ -115,12 +105,22 @@ export function DJWaveformDeck({
   const lastBeatTimeRef = useRef<number>(0);
   const beatIntervalsRef = useRef<number[]>([]);
 
-  // 1. Pre-decode Track Audio when fileUrl changes - Procure Rekordbox BPM & Key automatically
+  // Decode once per track for the existing waveform, tempo and key analysis.
   useEffect(() => {
+    const reqId = ++decodeRequestIdRef.current;
+    decodedTrackSlicesRef.current = [];
+    liveSlicesRef.current = [];
+    overviewBufferRef.current = new Array(OVERVIEW_BINS).fill(null).map(() => ({
+      peak: 0, rms: 0, lowEnergy: 0, midEnergy: 0, highEnergy: 0, isBeat: false, time: 0
+    }));
+    smoothTimeRef.current = 0;
+    energyHistoryRef.current = []; beatIntervalsRef.current = [];
+    setDuration(0); setCurrentTime(0); setGridOffset(0);
+    setDecodeState(fileUrl ? 'Loading waveform…' : 'No source');
+    setBpm(0);
+    onTrackAnalysis?.({ fileUrl, bpm: 0, bpmSource: 'none', musicalKey: 'Unknown', camelotKey: '—', keyCorrelation: 0 });
     if (!fileUrl) return;
 
-    isManualGridRef.current = false;
-    const reqId = ++decodeRequestIdRef.current;
     let isMounted = true;
 
     const decodeTrack = async () => {
@@ -152,27 +152,26 @@ export function DJWaveformDeck({
         const dur = audioBuf.duration;
         setDuration(dur);
 
-        // Procure exact BPM and Musical Key automatically on loaded audio using Rekordbox methodology
+        // Reuse the existing detectors; results are estimates with their existing confidence states.
         const bpmAnalysis = detectBpmFromAudio(audioBuf);
         const keyAnalysis = detectKeyFromAudio(audioBuf);
 
-        console.debug('[AudioAnalysis:Rekordbox] Auto-procured tempo from file:', bpmAnalysis.bpm, bpmAnalysis.diagnostics);
+        console.debug('[AudioAnalysis:Tempo] Automatically detected tempo from file:', bpmAnalysis.bpm, bpmAnalysis.diagnostics);
         setBpm(bpmAnalysis.bpm);
-        setBpmSource(bpmAnalysis.bpm > 0 ? 'auto' : 'none');
-        if (!isManualGridRef.current) {
-          setGridOffset(bpmAnalysis.firstBeatTime);
-        }
+        setGridOffset(bpmAnalysis.firstBeatTime);
         console.debug('[AudioAnalysis:Key Lifecycle] Applied key detection:', keyAnalysis.musicalKey, keyAnalysis.camelot, keyAnalysis.diagnostics);
-        setMusicalKey(keyAnalysis.musicalKey);
-        setCamelotKey(keyAnalysis.camelot);
-        setKeyCorrelation(keyAnalysis.correlation ?? keyAnalysis.diagnostics?.bestCorrelation ?? 0);
+        onTrackAnalysis?.({
+          fileUrl, bpm: bpmAnalysis.bpm, bpmSource: bpmAnalysis.bpm > 0 ? 'auto' : 'none',
+          musicalKey: keyAnalysis.musicalKey, camelotKey: keyAnalysis.camelot,
+          keyCorrelation: keyAnalysis.correlation ?? keyAnalysis.diagnostics?.bestCorrelation ?? 0
+        });
 
-        const channelData = audioBuf.getChannelData(0);
+        const channels = Array.from({ length: audioBuf.numberOfChannels }, (_, c) => audioBuf.getChannelData(c));
         const sampleRate = audioBuf.sampleRate;
-        const totalSamples = channelData.length;
+        const totalSamples = audioBuf.length;
 
-        const totalSlices = Math.floor(dur * SLICES_PER_SECOND);
-        const samplesPerSlice = Math.max(1, Math.floor(totalSamples / totalSlices));
+        const totalSlices = Math.max(1, Math.ceil(dur * SLICES_PER_SECOND));
+        const samplesPerSlice = totalSamples / totalSlices;
 
         const decodedSlices: WaveSlice[] = [];
         const overviewSlices: WaveSlice[] = new Array(OVERVIEW_BINS).fill(null).map(() => ({
@@ -185,55 +184,15 @@ export function DJWaveformDeck({
           time: 0
         }));
 
-        // 1-Pole Digital Filter Coefficients
-        let lowFilterState = 0;
-        let midFilterState = 0;
-        const lowAlpha = Math.min(1, (2 * Math.PI * 250) / sampleRate);
-        const midAlpha = Math.min(1, (2 * Math.PI * 3500) / sampleRate);
+        const filters = createWaveformFilterState(channels.length);
 
         for (let s = 0; s < totalSlices; s++) {
-          const startSample = s * samplesPerSlice;
-          const endSample = Math.min(totalSamples, startSample + samplesPerSlice);
+          const startSample = Math.floor(s * samplesPerSlice);
+          const endSample = Math.min(totalSamples, Math.floor((s + 1) * samplesPerSlice));
           const sliceTime = s / SLICES_PER_SECOND;
 
-          let peakVal = 0;
-          let sumSquares = 0;
-          let lowSum = 0;
-          let midSum = 0;
-          let highSum = 0;
-          const count = endSample - startSample;
-
-          for (let i = startSample; i < endSample; i++) {
-            const raw = channelData[i];
-            const absRaw = Math.abs(raw);
-            if (absRaw > peakVal) peakVal = absRaw;
-            sumSquares += raw * raw;
-
-            // Low-pass (~250 Hz)
-            lowFilterState += lowAlpha * (raw - lowFilterState);
-            lowSum += Math.abs(lowFilterState);
-
-            // Mid-pass (250-3500 Hz)
-            midFilterState += midAlpha * (raw - midFilterState);
-            const midSample = midFilterState - lowFilterState;
-            midSum += Math.abs(midSample);
-
-            // High-pass (>3500 Hz)
-            const highSample = raw - midFilterState;
-            highSum += Math.abs(highSample);
-          }
-
-          const rmsVal = Math.sqrt(sumSquares / Math.max(1, count));
-          const lowE = Math.min(1.0, (lowSum / Math.max(1, count)) * 2.8);
-          const midE = Math.min(1.0, (midSum / Math.max(1, count)) * 3.2);
-          const highE = Math.min(1.0, (highSum / Math.max(1, count)) * 4.5);
-
           const slice: WaveSlice = {
-            peak: Math.min(1.0, peakVal),
-            rms: Math.min(1.0, rmsVal),
-            lowEnergy: lowE,
-            midEnergy: midE,
-            highEnergy: highE,
+            ...analyzeWaveformSlice(channels, sampleRate, startSample, endSample, filters),
             isBeat: false,
             time: sliceTime
           };
@@ -244,20 +203,20 @@ export function DJWaveformDeck({
           const overviewIdx = Math.floor((sliceTime / dur) * OVERVIEW_BINS);
           if (overviewIdx >= 0 && overviewIdx < OVERVIEW_BINS) {
             const slot = overviewSlices[overviewIdx];
-            if (slice.peak > slot.peak) {
-              slot.peak = slice.peak;
-              slot.rms = slice.rms;
-              slot.lowEnergy = slice.lowEnergy;
-              slot.midEnergy = slice.midEnergy;
-              slot.highEnergy = slice.highEnergy;
-              slot.time = sliceTime;
-            }
+            slot.peak = Math.max(slot.peak, slice.peak);
+            slot.rms = Math.max(slot.rms, slice.rms);
+            slot.lowEnergy = Math.max(slot.lowEnergy, slice.lowEnergy);
+            slot.midEnergy = Math.max(slot.midEnergy, slice.midEnergy);
+            slot.highEnergy = Math.max(slot.highEnergy, slice.highEnergy);
+            slot.time = sliceTime;
           }
         }
 
         decodedTrackSlicesRef.current = decodedSlices;
         overviewBufferRef.current = overviewSlices;
+        setDecodeState('');
       } catch (err) {
+        if (isMounted && reqId === decodeRequestIdRef.current) setDecodeState('Waveform unavailable — source or format not accessible');
         console.warn('Failed to pre-decode track audio:', err);
       }
     };
@@ -266,7 +225,7 @@ export function DJWaveformDeck({
     return () => {
       isMounted = false;
     };
-  }, [fileUrl]);
+  }, [fileUrl, onTrackAnalysis]);
 
   // Synchronize duration and live seeking from audio element
   useEffect(() => {
@@ -274,12 +233,14 @@ export function DJWaveformDeck({
     if (!elem) return;
 
     const onMeta = () => {
+      if (elem.src !== fileUrl) return;
       if (!isNaN(elem.duration) && elem.duration > 0) {
         setDuration(elem.duration);
       }
     };
 
     const onSeekOrUpdate = () => {
+      if (elem.src !== fileUrl) return;
       if (!isNaN(elem.currentTime)) {
         smoothTimeRef.current = elem.currentTime;
         setCurrentTime(elem.currentTime);
@@ -288,6 +249,7 @@ export function DJWaveformDeck({
       }
     };
 
+    onMeta();
     elem.addEventListener('loadedmetadata', onMeta);
     elem.addEventListener('seeked', onSeekOrUpdate);
     elem.addEventListener('timeupdate', onSeekOrUpdate);
@@ -296,7 +258,7 @@ export function DJWaveformDeck({
       elem.removeEventListener('seeked', onSeekOrUpdate);
       elem.removeEventListener('timeupdate', onSeekOrUpdate);
     };
-  }, []);
+  }, [fileUrl, isPlaying]);
 
   // Format Elapsed mm:ss.s
   const formatElapsed = (sec: number) => {
@@ -326,51 +288,6 @@ export function DJWaveformDeck({
     return `${barNum}.${beatInBar}Bars`;
   }, [currentTime, bpm, gridOffset]);
 
-  // Key detection threshold color indicators:
-  // > 0.4: Green (over threshold)
-  // 0.2 to 0.4: Yellow (between 0.2 and 0.4)
-  // < 0.2: Red (below that)
-  const keyColor = useMemo(() => {
-    if (musicalKey === 'Unknown' || keyCorrelation < 0.2) {
-      return {
-        dot: 'bg-[#EF4444] shadow-[0_0_6px_#EF4444]',
-        text: 'text-[#EF4444]',
-        badge: 'bg-[#EF4444]/25 text-[#EF4444] border border-[#EF4444]/40',
-        confidenceLabel: 'Low Confidence (< 0.2)'
-      };
-    }
-    if (keyCorrelation <= 0.4) {
-      return {
-        dot: 'bg-[#EAB308] shadow-[0_0_6px_#EAB308]',
-        text: 'text-[#EAB308]',
-        badge: 'bg-[#EAB308]/25 text-[#EAB308] border border-[#EAB308]/40',
-        confidenceLabel: 'Moderate Confidence (0.2 – 0.4)'
-      };
-    }
-    return {
-      dot: 'bg-[#22C55E] shadow-[0_0_6px_#22C55E]',
-      text: 'text-[#22C55E]',
-      badge: 'bg-[#22C55E]/25 text-[#22C55E] border border-[#22C55E]/40',
-      confidenceLabel: 'High Confidence (> 0.4)'
-    };
-  }, [musicalKey, keyCorrelation]);
-
-  // Nudge beatgrid phase left / right (5ms)
-  const handleNudgeGrid = (direction: 'left' | 'right') => {
-    const step = 0.005; // 5ms
-    isManualGridRef.current = true;
-    setGridOffset(prev => prev + (direction === 'right' ? step : -step));
-  };
-
-  // Set downbeat (Beat 1) at current playhead position (aligned to 4-beat bar)
-  const handleSetDownbeat = () => {
-    if (bpm <= 0) return;
-    isManualGridRef.current = true;
-    const interval = 60 / bpm;
-    const barInterval = 4 * interval;
-    const normalizedOffset = ((currentTime % barInterval) + barInterval) % barInterval;
-    setGridOffset(normalizedOffset);
-  };
 
   // Reset waveform buffer
   const handleResetBuffer = () => {
@@ -378,14 +295,15 @@ export function DJWaveformDeck({
     smoothTimeRef.current = 0;
     setCurrentTime(0);
     const elem = audioAnalyzer.getAudioElement();
-    if (elem) elem.currentTime = 0;
+    if (elem) audioAnalyzer.seek(0);
   };
 
   // 2. High-Performance 60 FPS Real-Time Audio Analysis & Continuous Scroll Loop
   useEffect(() => {
     let animId: number;
-    let freqBuffer: Uint8Array | null = null;
-    let timeBuffer: Uint8Array | null = null;
+    let channelBuffers: Float32Array[] = [];
+    let sourceNode: AnalyserNode | null = null;
+    let filters = createWaveformFilterState(0);
 
     const renderLoop = () => {
       animId = requestAnimationFrame(renderLoop);
@@ -424,72 +342,21 @@ export function DJWaveformDeck({
         setCurrentTime(smoothTimeRef.current);
       }
 
-      // Query Live Web Audio API Analyser
-      const analyser = audioAnalyzer.getAnalyser();
-      if (analyser) {
-        const binCount = analyser.frequencyBinCount;
-        const fftSize = analyser.fftSize;
-
-        if (!freqBuffer || freqBuffer.length !== binCount) {
-          freqBuffer = new Uint8Array(binCount);
+      // Analyze the existing per-channel nodes so opposite polarity cannot cancel.
+      const stereo = audioAnalyzer.getStereoAnalysers();
+      const mono = audioAnalyzer.getAnalyser();
+      const nodes = stereo.left && stereo.right ? [stereo.left, stereo.right] : mono ? [mono] : [];
+      if (nodes.length) {
+        if (sourceNode !== nodes[0] || channelBuffers.length !== nodes.length || channelBuffers[0]?.length !== nodes[0].fftSize) {
+          sourceNode = nodes[0];
+          channelBuffers = nodes.map(node => new Float32Array(node.fftSize));
+          filters = createWaveformFilterState(nodes.length);
         }
-        if (!timeBuffer || timeBuffer.length !== fftSize) {
-          timeBuffer = new Uint8Array(fftSize);
-        }
-
-        analyser.getByteFrequencyData(freqBuffer);
-        analyser.getByteTimeDomainData(timeBuffer);
-
-        const ctxAudio = audioAnalyzer.getContext();
-        const sampleRate = ctxAudio ? ctxAudio.sampleRate : 44100;
-        const binHz = sampleRate / fftSize;
-
-        // Calculate Multi-Band Energy Splits from Live Audio
-        const lowStart = Math.max(1, Math.floor(20 / binHz));
-        const lowEnd = Math.min(binCount - 1, Math.floor(250 / binHz));
-        let lowSum = 0;
-        let lowCount = 0;
-        for (let i = lowStart; i <= lowEnd; i++) {
-          lowSum += freqBuffer[i];
-          lowCount++;
-        }
-        const rawLow = lowCount > 0 ? (lowSum / lowCount) / 255 : 0;
-
-        const midStart = lowEnd + 1;
-        const midEnd = Math.min(binCount - 1, Math.floor(4000 / binHz));
-        let midSum = 0;
-        let midCount = 0;
-        for (let i = midStart; i <= midEnd; i++) {
-          midSum += freqBuffer[i];
-          midCount++;
-        }
-        const rawMid = midCount > 0 ? (midSum / midCount) / 255 : 0;
-
-        const highStart = midEnd + 1;
-        const highEnd = Math.min(binCount - 1, Math.floor(20000 / binHz));
-        let highSum = 0;
-        let highCount = 0;
-        for (let i = highStart; i <= highEnd; i++) {
-          highSum += freqBuffer[i];
-          highCount++;
-        }
-        const rawHigh = highCount > 0 ? (highSum / highCount) / 255 : 0;
-
-        // Peak & RMS
-        let peak = 0;
-        let sumSquares = 0;
-        for (let i = 0; i < timeBuffer.length; i++) {
-          const norm = (timeBuffer[i] - 128) / 128;
-          const absVal = Math.abs(norm);
-          if (absVal > peak) peak = absVal;
-          sumSquares += norm * norm;
-        }
-        const rms = Math.sqrt(sumSquares / timeBuffer.length);
-
-        const lowEnergy = Math.min(1.0, Math.pow(rawLow, 1.1) * 1.3);
-        const midEnergy = Math.min(1.0, Math.pow(rawMid, 1.05) * 1.2);
-        const highEnergy = Math.min(1.0, Math.pow(rawHigh, 1.0) * 1.5);
-        const combinedPeak = Math.max(peak, (lowEnergy * 0.5 + midEnergy * 0.35 + highEnergy * 0.25));
+        nodes.forEach((node, c) => node.getFloatTimeDomainData(channelBuffers[c]));
+        const measured = analyzeWaveformSlice(channelBuffers, audioAnalyzer.getContext()?.sampleRate || 48000,
+          0, channelBuffers[0].length, filters);
+        const { lowEnergy, midEnergy, highEnergy, rms } = measured;
+        const combinedPeak = measured.peak;
 
         // Beat Detection
         const instantEnergy = lowEnergy * 0.75 + midEnergy * 0.25;
@@ -502,8 +369,6 @@ export function DJWaveformDeck({
 
         if (isBeat) {
           lastBeatTimeRef.current = now;
-          setBeatFlash(true);
-          setTimeout(() => setBeatFlash(false), 90);
         }
 
         // Record Live Slice
@@ -549,7 +414,7 @@ export function DJWaveformDeck({
 
     animId = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(animId);
-  }, [isPlaying, isFrozen, duration, bpm, gridOffset, isGridLocked, zoomLevel, config]);
+  }, [isPlaying, isFrozen, duration, bpm, gridOffset, zoomLevel, config, fileUrl]);
 
   // Color Theme Resolution
   const colors = useMemo(() => {
@@ -862,8 +727,7 @@ export function DJWaveformDeck({
 
     const elem = audioAnalyzer.getAudioElement();
     if (elem) {
-      elem.currentTime = targetTime;
-      audioAnalyzer.handleSeek();
+      audioAnalyzer.seek(targetTime);
     }
     drawOverviewCanvas();
     drawDetailCanvas();
@@ -880,7 +744,7 @@ export function DJWaveformDeck({
       lastMouseXRef.current = ev.clientX;
 
       const visibleDuration = 24 / zoomLevel;
-      const pixelsPerSecond = (detailCanvasRef.current?.width || 1400) / visibleDuration;
+      const pixelsPerSecond = (detailCanvasRef.current?.getBoundingClientRect().width || 1) / visibleDuration;
       const deltaTime = -deltaX / pixelsPerSecond;
 
       const maxDur = duration > 0 ? duration : 3600;
@@ -891,8 +755,7 @@ export function DJWaveformDeck({
 
       const elem = audioAnalyzer.getAudioElement();
       if (elem) {
-        elem.currentTime = nextTime;
-        audioAnalyzer.handleSeek();
+        audioAnalyzer.seek(nextTime);
       }
       drawOverviewCanvas();
       drawDetailCanvas();
@@ -909,16 +772,6 @@ export function DJWaveformDeck({
   };
 
 
-  // Audio Format Badge
-  const audioFormatBadge = useMemo(() => {
-    if (streamMetadata && streamMetadata.sampleRate > 0) {
-      const sr = (streamMetadata.sampleRate / 1000).toFixed(1) + ' kHz';
-      const depth = streamMetadata.bitDepth ? `${streamMetadata.bitDepth}-BIT ` : '';
-      const codec = streamMetadata.codec ? streamMetadata.codec.toUpperCase() : 'WAV';
-      return `${depth}${codec} ${sr}`;
-    }
-    return '44.1 kHz 16-BIT WAV';
-  }, [streamMetadata]);
 
   return (
     <div 
@@ -927,41 +780,23 @@ export function DJWaveformDeck({
     >
       {/* 1. TOP TRACK HEADER BAR */}
       <div 
-        className="w-full bg-[#181818] border-b border-[#333333] flex flex-col justify-between" 
+        className="w-full bg-[#121212] border-b border-[#4a4a4a] flex flex-col justify-between"
         id="dj-deck-header-top-bar"
       >
         <div className="flex items-center justify-between px-3 py-2 flex-wrap gap-2">
-          {/* Left: Track Information & Status */}
-          <div className="flex items-center gap-3 min-w-0">
-            {/* Visual Icon / Disc Thumbnail */}
-            <div className="relative w-9 h-9 rounded-full bg-[#111111] border border-[#444444] flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
-              <Disc className={`w-5 h-5 text-[#b20000] ${isPlaying && !isFrozen ? 'animate-spin' : ''}`} style={{ animationDuration: '2.5s' }} />
-              <div className="absolute inset-0 rounded-full border border-black/50" />
+          {/* Left: Stable panel identity */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-1.5 bg-[#181818] border border-[#4a4a4a] flex items-center justify-center text-[#b20000] shrink-0">
+              <AudioLines className="w-4 h-4 text-[#b20000]" />
             </div>
-
-            {/* Track Title, Specs, & Format */}
-            <div className="min-w-0 flex flex-col">
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] font-sans font-semibold text-[#F2F2F2] tracking-wide truncate max-w-[280px] sm:max-w-[420px]" title={fileName || 'No Audio Track Loaded'}>
-                  {fileName || 'No Audio Track Loaded'}
-                </span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-[#222222] border border-[#4a4a4a] text-[#B8B8B8] font-medium uppercase">
-                  {audioFormatBadge}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-[11px] font-mono text-[#858585] mt-0.5">
-                <span className="flex items-center gap-1">
-                  <span className={`w-1.5 h-1.5 rounded-full ${isPlaying ? 'bg-[#00FF66] shadow-[0_0_6px_#00FF66]' : 'bg-[#555555]'}`} />
-                  <span className="font-semibold text-[#B8B8B8]">{isPlaying ? (isFrozen ? 'FROZEN INSPECTION' : 'LIVE 60FPS SCROLLING') : 'STANDBY'}</span>
-                </span>
-                <span>•</span>
-                <span>Bar Grid: {bpm > 0 ? bpm.toFixed(2) + ' BPM' : '--- BPM'}</span>
-              </div>
-            </div>
+            <h1 className="text-xs font-semibold tracking-[1.4px] text-[#F2F2F2] font-sans uppercase animate-fade-in">
+              Waveform Deck
+            </h1>
           </div>
 
-          {/* Right: Dynamic Timing Readouts, Tempo, & Popout */}
-          <div className="flex items-center gap-4 text-right shrink-0">
+          {/* Right: Timing and waveform actions */}
+          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-right ml-auto min-w-0 max-w-full">
+            <div className="flex items-center gap-4 shrink-0">
             {/* Elapsed Time */}
             <div className="flex flex-col items-end">
               <span className="text-[10px] uppercase font-sans font-medium text-[#858585] tracking-wider">ELAPSED</span>
@@ -978,57 +813,104 @@ export function DJWaveformDeck({
               </span>
             </div>
 
-            {/* Dynamic BPM Indicator with Beat Flash */}
-            <div className="flex flex-col items-end pl-2 border-l border-[#333333]">
-              <span className="text-[10px] uppercase font-sans font-medium text-[#858585] tracking-wider flex items-center gap-1">
-                <span className={`w-1.5 h-1.5 rounded-full transition-all duration-75 ${beatFlash ? 'bg-[#00BFFF] scale-150 shadow-[0_0_8px_#00BFFF]' : 'bg-[#333333]'}`} />
-                TEMPO
-                {bpmSource === 'auto' && (
-                  <span className="text-[8px] font-sans font-bold px-1 py-0.5 bg-[#00BFFF]/20 text-[#00BFFF]">
-                    AUTO
-                  </span>
-                )}
-              </span>
-              <span 
-                className="text-[15px] font-mono font-semibold text-[#F2F2F2] tabular-nums tracking-wide select-none"
-                title={`Rekordbox Auto-Detected Tempo: ${bpm > 0 ? bpm.toFixed(2) + ' BPM' : 'Unavailable'}`}
-              >
-                {bpm > 0 ? bpm.toFixed(2) : '---'}
-              </span>
             </div>
-
-            {/* Dynamic Musical Key & Camelot Wheel Indicator with threshold color coding */}
-            <div className="flex flex-col items-end pl-2 border-l border-[#333333]">
-              <span className="text-[10px] uppercase font-sans font-medium text-[#858585] tracking-wider flex items-center gap-1">
-                <span className={`w-1.5 h-1.5 rounded-full ${keyColor.dot}`} />
-                KEY (CAMELOT)
-              </span>
-              <div 
-                className="flex items-center gap-1.5 mt-0.5 cursor-pointer hover:opacity-85 transition-opacity"
-                title={`Detected Key: ${musicalKey} • Camelot Code: ${camelotKey} • Correlation: ${(keyCorrelation * 100).toFixed(1)}% (${keyColor.confidenceLabel})`}
-              >
-                <span className={`text-[14px] font-mono font-semibold tracking-tight ${keyColor.text}`}>
-                  {musicalKey}
-                </span>
-                <span className={`px-1.5 py-0.5 text-[10px] font-sans font-bold ${keyColor.badge}`}>
-                  {camelotKey}
-                </span>
-              </div>
+            <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full" id="waveform-header-controls">
+        <PanelInfo label="About the waveform">
+          <p>The beat grid is estimated and assumes 4/4 time. The waveform includes all decoded channels: its outline preserves the largest peaks, and its colors combine channel energy without phase cancellation.</p>
+        </PanelInfo>
+        {/* Horizontal zoom controls */}
+        <div
+          className="flex items-center shrink-0 gap-1 bg-[#141414]/95 backdrop-blur-sm border border-[#3a3a3a] p-1 rounded-none z-20 select-none shadow-xl"
+          id="waveform-header-zoom-cluster"
+        >
+          {/* Zoom In (+) */}
+          <div className="relative group/btn">
+            <button
+              type="button"
+              onClick={() => setZoomLevel(prev => Math.min(12, prev + 0.5))}
+              className="w-6 h-6 flex items-center justify-center bg-[#181818] border border-[#383838] text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] hover:border-[#F2F2F2] active:bg-[#303030] rounded-none transition-[border-color,background-color,color] duration-150 ease-out cursor-pointer"
+              title="Zoom in by 0.5× to inspect transients."
+              id="btn-zoom-in-wf"
+              aria-label="Zoom In (+0.5x)"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+            <div className="pointer-events-none absolute bottom-full mb-2 left-0 z-30 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-150 ease-out bg-[#121212]/95 border border-[#3a3a3a] px-2 py-1 shadow-2xl whitespace-normal w-max max-w-[220px] text-[10px] font-mono text-[#B8B8B8] uppercase tracking-wider">
+              <span>ZOOM IN (+0.5X) · TRANSIENT DETAIL <span className="text-[#F2F2F2]">[{zoomLevel.toFixed(1)}X / 12.0X]</span></span>
             </div>
+          </div>
 
+          {/* Reset Zoom (RST) */}
+          <div className="relative group/btn">
+            <button
+              type="button"
+              onClick={() => setZoomLevel(3.5)}
+              className="px-2 h-6 flex items-center justify-center bg-[#181818] border border-[#383838] text-[10px] font-mono font-medium uppercase tracking-wider text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] hover:border-[#F2F2F2] active:bg-[#303030] rounded-none transition-[border-color,background-color,color] duration-150 ease-out cursor-pointer"
+              title="Return to the default 3.5× zoom."
+              id="btn-zoom-rst-wf"
+              aria-label="Reset Zoom (3.5x)"
+            >
+              RST
+            </button>
+            <div className="pointer-events-none absolute bottom-full mb-2 left-0 z-30 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-150 ease-out bg-[#121212]/95 border border-[#3a3a3a] px-2 py-1 shadow-2xl whitespace-normal w-max max-w-[220px] text-[10px] font-mono text-[#B8B8B8] uppercase tracking-wider">
+              <span>RESET ZOOM <span className="text-[#F2F2F2]">[3.5X]</span> · DEFAULT VIEW</span>
+            </div>
+          </div>
+
+          {/* Zoom Out (-) */}
+          <div className="relative group/btn">
+            <button
+              type="button"
+              onClick={() => setZoomLevel(prev => Math.max(1, prev - 0.5))}
+              className="w-6 h-6 flex items-center justify-center bg-[#181818] border border-[#383838] text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] hover:border-[#F2F2F2] active:bg-[#303030] rounded-none transition-[border-color,background-color,color] duration-150 ease-out cursor-pointer"
+              title="Zoom out by 0.5× to see more of the track."
+              id="btn-zoom-out-wf"
+              aria-label="Zoom Out (-0.5x)"
+            >
+              <Minus className="w-3.5 h-3.5" />
+            </button>
+            <div className="pointer-events-none absolute bottom-full mb-2 left-0 z-30 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-150 ease-out bg-[#121212]/95 border border-[#3a3a3a] px-2 py-1 shadow-2xl whitespace-normal w-max max-w-[220px] text-[10px] font-mono text-[#B8B8B8] uppercase tracking-wider">
+              <span>ZOOM OUT (-0.5X) · MACRO OVERVIEW <span className="text-[#F2F2F2]">[{zoomLevel.toFixed(1)}X / 1.0X]</span></span>
+            </div>
+          </div>
+
+
+        </div>
+
+
+          {/* Freeze Frame Button */}
+          <button
+            type="button"
+            onClick={() => setIsFrozen(prev => !prev)}
+            className={`h-7 px-2.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.8px] border transition-colors cursor-pointer ${
+              isFrozen
+                ? 'bg-[#b20000] border-[#b20000] text-[#F2F2F2] shadow-[0_0_8px_#b20000]'
+                : 'bg-[#141414] border-[#3a3a3a] text-[#B8B8B8] hover:text-[#F2F2F2] hover:border-[#666666]'
+            }`}
+            title="Hold the waveform display for inspection. Audio keeps playing."
+            id="btn-freeze-waveform"
+          >
+            <Snowflake className="w-3 h-3 text-current" />
+            <span>{isFrozen ? 'FROZEN' : 'FREEZE'}</span>
+          </button>
+              <ResetButton
+                onClick={handleResetBuffer}
+                title="Clear the live waveform history."
+                id="btn-reset-waveform-buffer"
+              />
             {/* Popout Button if hosted on dashboard */}
             {onPopOut && (
-              <div className="ml-1 border-l border-[#333333] pl-2">
                 <PopOutButton 
                   onClick={onPopOut}
                   title="Pop out Waveform Deck"
                   id="btn-popout-dj-waveform"
                 />
-              </div>
             )}
+            </div>
           </div>
         </div>
 
+        {decodeState && <div className="px-3 py-1 text-[10px] text-[#999]" role="status">{decodeState}</div>}
         {/* Mini Full-Length Track Overview Strip */}
         <div className="w-full relative h-[26px] bg-[#000000] border-t border-[#222222]" id="overview-strip-container">
           <canvas
@@ -1037,7 +919,7 @@ export function DJWaveformDeck({
             height={26}
             onMouseDown={handleOverviewMouseDown}
             className="w-full h-full cursor-pointer block"
-            title="Real-time multi-band overview. Click or drag to seek anywhere in the track."
+            title="Click or drag to move through the track."
           />
         </div>
       </div>
@@ -1050,102 +932,8 @@ export function DJWaveformDeck({
           height={220}
           onMouseDown={handleDetailMouseDown}
           className="w-full h-full block cursor-ew-resize"
-          title="Live multi-band waveform scrolling continuously as generated. Click and drag horizontally to scrub."
+          title="Drag left or right to scrub through the track."
         />
-
-        {/* Floating Zoom & Timebase Navigation Overlay */}
-        <div 
-          className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-[#141414]/95 backdrop-blur-sm border border-[#3a3a3a] p-1 rounded-none z-20 select-none shadow-xl"
-          id="waveform-canvas-zoom-cluster"
-        >
-          {/* Zoom In (+) */}
-          <div className="relative group/btn">
-            <button
-              type="button"
-              onClick={() => setZoomLevel(prev => Math.min(12, prev + 0.5))}
-              className="w-6 h-6 flex items-center justify-center bg-[#181818] border border-[#383838] text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] hover:border-[#F2F2F2] active:bg-[#303030] rounded-none transition-[border-color,background-color,color] duration-150 ease-out cursor-pointer"
-              title="Zoom In (+0.5x) - Focus on Micro-Transients"
-              id="btn-zoom-in-wf"
-              aria-label="Zoom In (+0.5x)"
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
-            <div className="pointer-events-none absolute bottom-full mb-2 left-0 z-30 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-150 ease-out bg-[#121212]/95 border border-[#3a3a3a] px-2 py-1 shadow-2xl whitespace-nowrap text-[10px] font-mono text-[#B8B8B8] uppercase tracking-wider">
-              <span>ZOOM IN (+0.5X) · TRANSIENT DETAIL <span className="text-[#F2F2F2]">[{zoomLevel.toFixed(1)}X / 12.0X]</span></span>
-            </div>
-          </div>
-
-          {/* Reset Zoom (RST) */}
-          <div className="relative group/btn">
-            <button
-              type="button"
-              onClick={() => setZoomLevel(3.5)}
-              className="px-2 h-6 flex items-center justify-center bg-[#181818] border border-[#383838] text-[10px] font-mono font-medium uppercase tracking-wider text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] hover:border-[#F2F2F2] active:bg-[#303030] rounded-none transition-[border-color,background-color,color] duration-150 ease-out cursor-pointer"
-              title="Reset Zoom (3.5x) - Calibrated Reference Phrase View"
-              id="btn-zoom-rst-wf"
-              aria-label="Reset Zoom (3.5x)"
-            >
-              RST
-            </button>
-            <div className="pointer-events-none absolute bottom-full mb-2 left-0 z-30 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-150 ease-out bg-[#121212]/95 border border-[#3a3a3a] px-2 py-1 shadow-2xl whitespace-nowrap text-[10px] font-mono text-[#B8B8B8] uppercase tracking-wider">
-              <span>RESET ZOOM <span className="text-[#F2F2F2]">[3.5X]</span> · REFERENCE PHRASE VIEW</span>
-            </div>
-          </div>
-
-          {/* Zoom Out (-) */}
-          <div className="relative group/btn">
-            <button
-              type="button"
-              onClick={() => setZoomLevel(prev => Math.max(1, prev - 0.5))}
-              className="w-6 h-6 flex items-center justify-center bg-[#181818] border border-[#383838] text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] hover:border-[#F2F2F2] active:bg-[#303030] rounded-none transition-[border-color,background-color,color] duration-150 ease-out cursor-pointer"
-              title="Zoom Out (-0.5x) - Broader Arrangement Context"
-              id="btn-zoom-out-wf"
-              aria-label="Zoom Out (-0.5x)"
-            >
-              <Minus className="w-3.5 h-3.5" />
-            </button>
-            <div className="pointer-events-none absolute bottom-full mb-2 left-0 z-30 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-150 ease-out bg-[#121212]/95 border border-[#3a3a3a] px-2 py-1 shadow-2xl whitespace-nowrap text-[10px] font-mono text-[#B8B8B8] uppercase tracking-wider">
-              <span>ZOOM OUT (-0.5X) · MACRO OVERVIEW <span className="text-[#F2F2F2]">[{zoomLevel.toFixed(1)}X / 1.0X]</span></span>
-            </div>
-          </div>
-
-          {/* Subtle Vertical Divider */}
-          <div className="h-4 w-[1px] bg-[#383838] mx-0.5" />
-
-          {/* Nudge Left */}
-          <div className="relative group/btn">
-            <button
-              type="button"
-              onClick={() => handleNudgeGrid('left')}
-              className="w-6 h-6 flex items-center justify-center bg-[#181818] border border-[#383838] text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] hover:border-[#F2F2F2] active:bg-[#303030] rounded-none transition-[border-color,background-color,color] duration-150 ease-out cursor-pointer"
-              title="Nudge Beatgrid Left (-5ms)"
-              id="btn-nudge-left-wf"
-              aria-label="Nudge Beatgrid Left (-5ms)"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
-            <div className="pointer-events-none absolute bottom-full mb-2 left-0 z-30 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-150 ease-out bg-[#121212]/95 border border-[#3a3a3a] px-2 py-1 shadow-2xl whitespace-nowrap text-[10px] font-mono text-[#B8B8B8] uppercase tracking-wider">
-              <span>NUDGE GRID <span className="text-[#F2F2F2]">[-5MS]</span> · RETARD TO EARLIER BEAT</span>
-            </div>
-          </div>
-
-          {/* Nudge Right */}
-          <div className="relative group/btn">
-            <button
-              type="button"
-              onClick={() => handleNudgeGrid('right')}
-              className="w-6 h-6 flex items-center justify-center bg-[#181818] border border-[#383838] text-[#B8B8B8] hover:text-[#F2F2F2] hover:bg-[#252525] hover:border-[#F2F2F2] active:bg-[#303030] rounded-none transition-[border-color,background-color,color] duration-150 ease-out cursor-pointer"
-              title="Nudge Beatgrid Right (+5ms)"
-              id="btn-nudge-right-wf"
-              aria-label="Nudge Beatgrid Right (+5ms)"
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-            <div className="pointer-events-none absolute bottom-full mb-2 right-0 z-30 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-150 ease-out bg-[#121212]/95 border border-[#3a3a3a] px-2 py-1 shadow-2xl whitespace-nowrap text-[10px] font-mono text-[#B8B8B8] uppercase tracking-wider">
-              <span>NUDGE GRID <span className="text-[#F2F2F2]">[+5MS]</span> · ADVANCE TO LATER BEAT</span>
-            </div>
-          </div>
-        </div>
 
         {/* Legend Overlay at Top Right of Canvas */}
         <div className="absolute right-3 top-3 flex items-center gap-3 bg-[#111111]/85 backdrop-blur-sm border border-[#333333] px-2.5 py-1 rounded text-[10px] font-sans font-medium uppercase tracking-wider text-[#B8B8B8] z-10 pointer-events-none">
@@ -1164,137 +952,6 @@ export function DJWaveformDeck({
         </div>
       </div>
 
-      {/* 3. BOTTOM AUDIO ANALYSIS & DECK CONTROL STRIP */}
-      <div 
-        className="w-full bg-[#181818] border-t border-[#333333] px-3 py-2 flex flex-wrap items-center justify-between gap-3 text-white text-[11px] font-sans shrink-0" 
-        id="dj-deck-grid-strip"
-      >
-        {/* Left Side: Mode Tabs + Grid Actions */}
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Mode Selector Tabs */}
-          <div className="flex items-center gap-1 bg-[#111111] p-0.5 border border-[#383838]" id="dj-tab-mode-selector">
-            <button
-              type="button"
-              onClick={() => setActiveTab('MONITOR')}
-              className={`px-3 py-1 text-[11px] font-medium uppercase tracking-[0.8px] cursor-pointer transition-colors ${
-                activeTab === 'MONITOR' 
-                  ? 'bg-[#2a2a2a] text-[#F2F2F2]' 
-                  : 'text-[#B8B8B8] hover:text-[#F2F2F2]'
-              }`}
-              id="tab-btn-monitor"
-            >
-              WAVEFORM MONITOR
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('GRID_ANALYSIS')}
-              className={`px-3 py-1 text-[11px] font-medium uppercase tracking-[0.8px] cursor-pointer transition-colors ${
-                activeTab === 'GRID_ANALYSIS' 
-                  ? 'bg-[#2a2a2a] text-[#F2F2F2]' 
-                  : 'text-[#B8B8B8] hover:text-[#F2F2F2]'
-              }`}
-              id="tab-btn-gridedit"
-            >
-              BEATGRID ANALYSIS
-            </button>
-          </div>
-
-          {/* Downbeat Marker Button */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleSetDownbeat}
-              disabled={isGridLocked}
-              className="px-2.5 h-7 bg-[#141414] border border-[#3a3a3a] hover:border-[#b20000] text-[11px] font-medium uppercase tracking-wider text-[#F2F2F2] flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Set Beat 1 Downbeat at current playhead position"
-              id="btn-set-downbeat"
-            >
-              <span className="w-1.5 h-3 bg-[#b20000]" />
-              <span>SET DOWNBEAT</span>
-            </button>
-
-            {/* Auto-Procured Rekordbox BPM Badge */}
-            <div 
-              className="h-7 px-3 bg-[#121212] border border-[#2a2a2a] flex items-center justify-center font-mono font-semibold text-[#00BFFF] text-[11px] select-none gap-1.5"
-              title="Tempo procured automatically on track load using Rekordbox multi-band comb filter analysis"
-            >
-              <span className="text-[9px] uppercase tracking-wider text-[#858585] font-sans font-medium">REKORDBOX:</span>
-              <span>{bpm > 0 ? bpm.toFixed(2) + ' BPM' : '--- BPM'}</span>
-            </div>
-
-            {/* Nudge Left / Right Buttons (5ms phase shift) */}
-            <div className="flex items-center bg-[#141414] border border-[#3a3a3a] h-7">
-              <button
-                type="button"
-                onClick={() => handleNudgeGrid('left')}
-                disabled={isGridLocked}
-                className="px-2.5 h-full text-[#B8B8B8] hover:text-[#F2F2F2] border-r border-[#3a3a3a] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-mono text-[11px]"
-                title="Nudge beat grid phase left 5ms"
-                id="btn-nudge-grid-left"
-              >
-                ◀ 5ms
-              </button>
-              <button
-                type="button"
-                onClick={() => handleNudgeGrid('right')}
-                disabled={isGridLocked}
-                className="px-2.5 h-full text-[#B8B8B8] hover:text-[#F2F2F2] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-mono text-[11px]"
-                title="Nudge beat grid phase right 5ms"
-                id="btn-nudge-grid-right"
-              >
-                5ms ▶
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side: Freeze Frame, Reset Buffer, & Lock Grid */}
-        <div className="flex items-center gap-2">
-          {/* Freeze Frame Button */}
-          <button
-            type="button"
-            onClick={() => setIsFrozen(prev => !prev)}
-            className={`h-7 px-2.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.8px] border transition-colors cursor-pointer ${
-              isFrozen
-                ? 'bg-[#b20000] border-[#b20000] text-[#F2F2F2] shadow-[0_0_8px_#b20000]'
-                : 'bg-[#141414] border-[#3a3a3a] text-[#B8B8B8] hover:text-[#F2F2F2] hover:border-[#666666]'
-            }`}
-            title="Freeze and inspect current audio waveform transients"
-            id="btn-freeze-waveform"
-          >
-            <Snowflake className="w-3 h-3 text-current" />
-            <span>{isFrozen ? 'FROZEN' : 'FREEZE'}</span>
-          </button>
-
-          {/* Reset Buffer */}
-          <button
-            type="button"
-            onClick={handleResetBuffer}
-            className="h-7 px-2.5 bg-[#141414] border border-[#3a3a3a] text-[11px] font-medium uppercase tracking-[0.8px] text-[#B8B8B8] hover:text-[#F2F2F2] hover:border-[#666666] flex items-center gap-1 transition-colors cursor-pointer"
-            title="Clear and reset live waveform history buffer"
-            id="btn-reset-waveform-buffer"
-          >
-            <RotateCw className="w-3 h-3" />
-            <span>RESET</span>
-          </button>
-
-          {/* Lock / Unlock Grid Button */}
-          <button
-            type="button"
-            onClick={() => setIsGridLocked(!isGridLocked)}
-            className={`h-7 px-2.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.8px] border transition-colors cursor-pointer ${
-              isGridLocked 
-                ? 'bg-[#1a1a1a] border-[#3a3a3a] text-[#858585]' 
-                : 'bg-[#00BFFF]/20 border-[#00BFFF] text-[#00BFFF]'
-            }`}
-            title={isGridLocked ? "Beatgrid is locked against accidental shifts" : "Beatgrid unlocked for editing"}
-            id="btn-lock-grid"
-          >
-            {isGridLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
-            <span>{isGridLocked ? 'LOCKED' : 'UNLOCKED'}</span>
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
