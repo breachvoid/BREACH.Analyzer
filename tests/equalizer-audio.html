@@ -1,0 +1,26 @@
+<!doctype html><html><head><title>EQ audio verification</title></head><body><h1>EQ audio verification</h1><pre id="results">Running native audio renders…</pre><script type="module">
+import { EqualizerProcessor, DEFAULT_EQUALIZER, updateEqualizer, equalizerResponse } from '../src/dsp/equalizer.ts';
+import { AudioAnalyzerEngine } from '../src/audioEngine.ts';
+const out=document.getElementById('results'),results=[];
+const check=(ok,name,detail='')=>{results.push({name,pass:Boolean(ok),detail});out.textContent=JSON.stringify(results,null,2);if(!ok)throw Error(name+': '+detail);};
+const rms=(a,start=0,end=a.length)=>{let p=0;for(let i=start;i<end;i++)p+=a[i]*a[i];return Math.sqrt(p/(end-start));};
+async function render(sr,channels,settings,frequency=997,change){const ctx=new OfflineAudioContext(channels,sr,sr),buffer=ctx.createBuffer(channels,sr,sr);for(let c=0;c<channels;c++){const a=buffer.getChannelData(c);for(let i=0;i<a.length;i++)a[i]=(c?-1:1)*.1*Math.sin(2*Math.PI*frequency*i/sr);}const source=ctx.createBufferSource();source.buffer=buffer;const eq=new EqualizerProcessor(ctx,settings);source.connect(eq.input);eq.output.connect(ctx.destination);source.start();if(change){const waiting=ctx.suspend(.25).then(()=>{eq.apply(change);return ctx.resume();});const rendered=await ctx.startRendering();await waiting;return {rendered,input:buffer,ctx};}return {rendered:await ctx.startRendering(),input:buffer,ctx};}
+try{
+for(const sr of [44100,48000,96000]){
+ const extreme=updateEqualizer(DEFAULT_EQUALIZER,{low:{gain:12},mid:{gain:-12},high:{gain:12},outputGain:-24});
+ const a=await render(sr,2,extreme);let error=0;for(let c=0;c<2;c++){const actual=a.rendered.getChannelData(c),input=a.input.getChannelData(c);for(let i=0;i<sr;i++)error=Math.max(error,Math.abs(actual[i]-input[i]));}check(error<1e-7,'A is sample-accurate unity despite extreme B settings at '+sr,error);
+ const state=updateEqualizer(DEFAULT_EQUALIZER,{mode:'B',outputGain:-6});const b=await render(sr,2,state);const ratio=rms(b.rendered.getChannelData(0),sr/2)/rms(b.input.getChannelData(0),sr/2);check(Math.abs(20*Math.log10(ratio)+6)<.001,'B output gain is -6 dB at '+sr,ratio);
+ let cancellation=0;for(let i=sr/2;i<sr;i++)cancellation=Math.max(cancellation,Math.abs(b.rendered.getChannelData(0)[i]+b.rendered.getChannelData(1)[i]));check(cancellation<1e-7,'Stereo polarity and channel independence preserved at '+sr,cancellation);
+ const bell=updateEqualizer(DEFAULT_EQUALIZER,{mode:'B',mid:{frequency:997,gain:6,q:1}});const boosted=await render(sr,1,bell);const boost=20*Math.log10(rms(boosted.rendered.getChannelData(0),sr/2)/rms(boosted.input.getChannelData(0),sr/2));check(Math.abs(boost-6)<.01,'Bell boosts its center frequency by 6 dB at '+sr,boost);
+ const monoA=await render(sr,1,extreme);check(Math.abs(rms(monoA.rendered.getChannelData(0))-rms(monoA.input.getChannelData(0)))<1e-7,'Mono signal stays unity at '+sr);
+ const switched=await render(sr,2,DEFAULT_EQUALIZER,997,state);const data=switched.rendered.getChannelData(0);const before=rms(data,0,Math.floor(sr*.2))/rms(switched.input.getChannelData(0),0,Math.floor(sr*.2));const after=rms(data,Math.floor(sr*.7))/rms(switched.input.getChannelData(0),Math.floor(sr*.7));let peak=0;for(const sample of data)peak=Math.max(peak,Math.abs(sample));check(Math.abs(before-1)<1e-6&&Math.abs(20*Math.log10(after)+6)<.001&&peak<.100001,'A/B crossfade preserves source position and has no gain spike at '+sr,{before,after,peak});
+ const response=equalizerResponse(boosted.ctx,bell,new Float32Array([997]));check(Math.abs(response[0]-6)<.01,'Displayed native response matches rendered bell at '+sr,response[0]);
+}
+// Run the actual engine graph and registered loudness worklet offline.
+const sr=48000,ctx=new OfflineAudioContext(2,sr*4,sr),engine=new AudioAnalyzerEngine();engine.audioContext=ctx;await engine.ensureWorkletRegistered(ctx);engine.sourceActive=true;engine.buildPipeline();engine.setEqualizer({mode:'B',outputGain:-6});await new Promise(r=>setTimeout(r,80));
+const source=ctx.createBufferSource(),buffer=ctx.createBuffer(2,sr*4,sr);for(let c=0;c<2;c++)for(let i=0;i<buffer.length;i++)buffer.getChannelData(c)[i]=.1*Math.sin(2*Math.PI*997*i/sr);source.buffer=buffer;source.connect(engine.equalizer.input);engine.gainNode.connect(ctx.destination);source.start();const rendered=await ctx.startRendering();await new Promise(r=>setTimeout(r,100));const metrics=engine.getMetrics();check(metrics.integrated>-100&&metrics.integrated<-20,'Engine worklet measures processed B signal',metrics.integrated);const renderedGain=20*Math.log10(rms(rendered.getChannelData(0),sr*2)/rms(buffer.getChannelData(0),sr*2));check(Math.abs(renderedGain+12.0206)<.01,'B trim and independent 50% speaker volume combine only on output',renderedGain);check(engine.getMeasurementInfo().processing.mode==='B','Exported measurement identifies EQ processing');
+check(engine.getAudioElement()===null,'EQ graph tests do not create or seek a media element');
+engine.stopCurrent();check(engine.equalizer===null,'Source teardown releases EQ graph');
+out.textContent='PASS '+results.length+' native audio checks\n'+JSON.stringify(results,null,2);document.title='PASS EQ audio verification';
+}catch(e){out.textContent+='\nFAIL: '+e.stack;document.title='FAIL EQ audio verification';}
+</script></body></html>

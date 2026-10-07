@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { DEFAULT_EQUALIZER, EQ_SETTLE_MS, EqualizerProcessor, equalizerResponse, updateEqualizer, type EqualizerSettings, type EqualizerUpdate } from './dsp/equalizer';
 import { useState, useEffect, useRef } from 'react';
 import { AudioSourceType, GeneratorSignalType, LoudnessMetrics } from './types';
 import { AudioFileRegistry } from './utils';
@@ -19,6 +20,48 @@ export class AudioAnalyzerEngine {
   private gainNode: GainNode | null = null;
   private dummyGain: GainNode | null = null;
   private preAnalysisGain: GainNode | null = null;
+  private equalizer: EqualizerProcessor | null = null;
+  private equalizerSettings = updateEqualizer(DEFAULT_EQUALIZER, {});
+  private equalizerListeners = new Set<(settings: EqualizerSettings) => void>();
+  private equalizerTimer: number | null = null;
+  private equalizerSettling = false;
+
+  public getEqualizerState(): EqualizerSettings {
+    return updateEqualizer(this.equalizerSettings, {});
+  }
+
+  public registerEqualizerListener(listener: (settings: EqualizerSettings) => void) {
+    this.equalizerListeners.add(listener);
+    listener(this.getEqualizerState());
+    return () => { this.equalizerListeners.delete(listener); };
+  }
+
+  public getEqualizerResponse(frequencies: Float32Array) {
+    return equalizerResponse(this.initContext(), this.equalizerSettings, frequencies);
+  }
+
+  public setEqualizer(patch: EqualizerUpdate) {
+    const previous = this.equalizerSettings;
+    const next = updateEqualizer(previous, patch);
+    if (JSON.stringify(previous) === JSON.stringify(next)) return;
+    this.equalizerSettings = next;
+    this.equalizer?.apply(next);
+    this.equalizerListeners.forEach(listener => listener(this.getEqualizerState()));
+    if (previous.mode === next.mode && next.mode === 'A') return;
+    // Invalidate queued old metrics immediately. Exclude the ramp from the next epoch.
+    if (this.equalizerTimer !== null) window.clearTimeout(this.equalizerTimer);
+    this.equalizerSettling = Boolean(this.equalizer && this.loudnessAnalyser);
+    this.resetMetrics();
+    if (!this.equalizerSettling) return;
+    this.loudnessAnalyser?.port.postMessage({ type: 'TRANSPORT', running: false });
+    this.equalizerTimer = window.setTimeout(() => {
+      this.equalizerTimer = null;
+      this.equalizerSettling = false;
+      this.resetMetrics();
+      this.loudnessAnalyser?.port.postMessage({ type: 'TRANSPORT', running: this.sourceActive });
+    }, EQ_SETTLE_MS);
+  }
+
   private workletRegistrationPromises = new WeakMap<AudioContext, Promise<void>>();
 
   // Filter nodes for K-weighting (ITU-R BS.1770)
@@ -122,6 +165,7 @@ export class AudioAnalyzerEngine {
   public getMeasurementInfo() {
     return { scope: this.measurementScope, epoch: this.measurementEpoch, resetAt: this.resetAt,
       source: this.sourceName, sourceUrl: this.activeFileUrl, sources: this.measuredSources.map(source => ({ ...source })), running: this.sourceActive,
+      processing: { ...this.getEqualizerState(), settling: this.equalizerSettling },
       error: this.sourceError, measuredSeconds: this.currentMetrics.measuredSeconds || 0 };
   }
 
@@ -368,7 +412,7 @@ export class AudioAnalyzerEngine {
     ) {
       this.sourceError = '';
       this.sourceActive = true;
-      this.loudnessAnalyser.port.postMessage({ type: 'TRANSPORT', running: true });
+      this.loudnessAnalyser.port.postMessage({ type: 'TRANSPORT', running: !this.equalizerSettling });
       this.readElementMetadata(options.element);
       this.notifyState();
       return;
@@ -537,6 +581,12 @@ export class AudioAnalyzerEngine {
       } catch (e) {}
       this.sourceNode = null;
     }
+
+    if (this.equalizerTimer !== null) window.clearTimeout(this.equalizerTimer);
+    this.equalizerTimer = null;
+    this.equalizerSettling = false;
+    this.equalizer?.disconnect();
+    this.equalizer = null;
 
     // Clean up analysis blocks
     if (this.loudnessAnalyser) {
@@ -838,6 +888,9 @@ registerProcessor('loudness-processor', LoudnessProcessor);
     this.preAnalysisGain.channelCountMode = 'max';
     this.preAnalysisGain.channelInterpretation = 'discrete';
 
+    this.equalizer = new EqualizerProcessor(ctx, this.equalizerSettings);
+    this.equalizer.output.connect(this.preAnalysisGain);
+
     // Core analyser (for standard spectrum displays, spectrograms, waveforms)
     this.analyser = ctx.createAnalyser();
     this.analyser.fftSize = 2048;
@@ -891,7 +944,7 @@ registerProcessor('loudness-processor', LoudnessProcessor);
             this.sourceUnavailable('Unsupported channel layout: ' + event.data.channelCount + ' channels');
             return;
           }
-          if (this.sourceActive && !this.sourceError && event.data.type === 'METRICS' && event.data.epoch === this.measurementEpoch) {
+          if (this.sourceActive && !this.equalizerSettling && !this.sourceError && event.data.type === 'METRICS' && event.data.epoch === this.measurementEpoch) {
             const metrics = event.data.metrics;
             this.currentMetrics = metrics;
             
@@ -934,7 +987,7 @@ registerProcessor('loudness-processor', LoudnessProcessor);
     this.sourceNode = ctx.createMediaStreamSource(stream);
     
     // Connect to central routing node for robust visualizer and upmixing support
-    this.sourceNode.connect(this.preAnalysisGain!);
+    this.sourceNode.connect(this.equalizer!.input);
     this.connectOutput();
   }
 
@@ -974,7 +1027,7 @@ registerProcessor('loudness-processor', LoudnessProcessor);
     this.sourceNode = ctx.createMediaStreamSource(audioOnlyStream);
     
     // Connect to central routing node for robust visualizer and upmixing support
-    this.sourceNode.connect(this.preAnalysisGain!);
+    this.sourceNode.connect(this.equalizer!.input);
     this.connectOutput();
 
     // Stop and reset when browser sharing banner stops
@@ -999,7 +1052,7 @@ registerProcessor('loudness-processor', LoudnessProcessor);
     this.sourceNode = mediaNode;
 
     // Connect to central routing node for robust visualizer and upmixing support
-    this.sourceNode.connect(this.preAnalysisGain!);
+    this.sourceNode.connect(this.equalizer!.input);
     this.connectOutput();
 
     this.readElementMetadata(elem);
@@ -1072,7 +1125,7 @@ registerProcessor('loudness-processor', LoudnessProcessor);
     }
 
     // Connect to central routing node for robust visualizer and upmixing support
-    genGain.connect(this.preAnalysisGain!);
+    genGain.connect(this.equalizer!.input);
     this.connectOutput();
   }
 

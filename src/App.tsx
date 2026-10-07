@@ -20,6 +20,7 @@ import { LoudnessMeter } from './components/LoudnessMeter';
 import { SourceSelector } from './components/SourceSelector';
 import { FloatingWindow } from './components/FloatingWindow';
 import { StereoVectorScope } from './components/StereoVectorScope';
+import { EqualizerDeck } from './components/EqualizerDeck';
 import { DJWaveformDeck } from './components/DJWaveformDeck';
 import { resolvePalette } from './utils';
 import { usePersistentState } from './utils/storage';
@@ -538,9 +539,11 @@ export default function App() {
           </div>
         </section>
 
+        <div className="@container w-full" id="waveform-eq-row">
+        <div className="grid grid-cols-1 @min-[850px]:grid-cols-[minmax(0,1fr)_300px] gap-3.5 items-stretch">
         {/* DJ Generated Waveform Deck (Interactive Multi-Band RGB Waveform & Beat Grid Workstation) */}
         <section 
-          className="w-full flex flex-col border border-[#4a4a4a] bg-[#1a1a1a] overflow-hidden" 
+          className="min-w-0 w-full flex flex-col border border-[#4a4a4a] bg-[#1a1a1a] overflow-hidden" 
           id="dj-waveform-deck-section"
         >
           {isDJWaveformPoppedOut ? (
@@ -576,6 +579,10 @@ export default function App() {
             />
           )}
         </section>
+
+        <EqualizerDeck />
+        </div>
+        </div>
 
         {/* Top Section: Master Spectrum Analyzer Deck (Main Attraction) with Integrated Signal Selection */}
         <section 

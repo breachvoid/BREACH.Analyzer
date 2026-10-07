@@ -775,7 +775,7 @@ export function DJWaveformDeck({
 
   return (
     <div 
-      className="w-full flex flex-col bg-[#141414] border border-[#383838] select-none text-left overflow-hidden" 
+      className="w-full h-full flex flex-col bg-[#141414] border border-[#383838] select-none text-left overflow-hidden" 
       id="dj-waveform-deck-container"
     >
       {/* 1. TOP TRACK HEADER BAR */}
@@ -790,7 +790,7 @@ export function DJWaveformDeck({
               <AudioLines className="w-4 h-4 text-[#b20000]" />
             </div>
             <h1 className="text-xs font-semibold tracking-[1.4px] text-[#F2F2F2] font-sans uppercase animate-fade-in">
-              Waveform Deck
+              Waveform Deck{fileUrl && <span className="ml-2 text-[9px] font-normal tracking-[0.5px] text-[#858585]">· ORIGINAL FILE</span>}
             </h1>
           </div>
 
@@ -815,7 +815,7 @@ export function DJWaveformDeck({
 
             </div>
             <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full" id="waveform-header-controls">
-        <PanelInfo label="About the waveform">
+        <PanelInfo label="About the waveform">The file waveform shows original audio; EQ changes appear in the live spectrum and meters. 
           <p>The beat grid is estimated and assumes 4/4 time. The waveform includes all decoded channels: its outline preserves the largest peaks, and its colors combine channel energy without phase cancellation.</p>
         </PanelInfo>
         {/* Horizontal zoom controls */}
@@ -925,7 +925,7 @@ export function DJWaveformDeck({
       </div>
 
       {/* 2. MAIN ZOOMED MULTI-BAND WAVEFORM CANVAS WITH 60 FPS SCROLLING */}
-      <div className="w-full relative h-[220px] bg-[#000000] overflow-hidden" id="dj-detail-canvas-stage">
+      <div className="w-full relative min-h-[220px] flex-1 bg-[#000000] overflow-hidden" id="dj-detail-canvas-stage">
         <canvas
           ref={detailCanvasRef}
           width={1400}
